@@ -62,16 +62,18 @@ export default function PickPage() {
 
     setLoading(true);
     try {
-      const prevTitle = recipe?.title ?? "";
+        const prevTitle = recipe?.title ?? "";
+        const base = prompt || "";
 
-    const retryPrompt =
-    `${prompt}\n\n` +
-    `PROPUESTA ANTERIOR (NO REPETIR): "${prevTitle}".\n` +
-    `REGLA: Quiero una IDEA COMPLETAMENTE DISTINTA. Está PROHIBIDO repetir el mismo plato o una variación.\n` +
-    `Si la anterior era de la familia "nuggets/fingers/empanado/crujiente", PROHIBIDO empanar o hacer nuggets/fingers/milanesa.\n` +
-    `Cambia de categoría: por ejemplo tortilla/tortillitas, salteado, bowl, ensalada templada, brochetas, revuelto, arroz a la sartén.\n` +
-    `Mantén: 20 min, 4-6 ingredientes, 1 momento wow, 1 truco, 1 error común + arreglo, sustitutos baratos.\n` +
-    `Devuélvelo en el mismo JSON de receta.`;
+        const retryPrompt =
+        `${base}\n\n` +
+        `PROPUESTA ANTERIOR (NO REPETIR): "${prevTitle}".\n` +
+        `REGLAS DE REGENERACIÓN (MUY IMPORTANTE):\n` +
+        `1) Mantén TODAS las restricciones del mensaje original (categoría/tipo de plato, estilo(s), equipo/método como airfryer/thermomix/horno, tiempo, etc.).\n` +
+        `2) Quiero una IDEA COMPLETAMENTE DISTINTA: NO vale renombrar el mismo plato ni cambiar 1 ingrediente.\n` +
+        `3) Prohibido repetir la MISMA FAMILIA del plato anterior (ej: nuggets/fingers/empanado/crujiente = prohibido seguir empanando o haciendo fingers).\n` +
+        `4) Si tu nueva idea rompe alguna restricción del original, descártala y genera otra antes de responder.\n` +
+        `Devuelve SOLO el JSON del esquema.\n`;
 
       const res = await fetch("/api/recipe", {
         method: "POST",

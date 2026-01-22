@@ -12,6 +12,39 @@ type Prefs = {
   };
 };
 
+function normalizeWow(recipe: any) {
+  if (!recipe || typeof recipe !== "object") return recipe;
+
+  // 1) Limpia wow y lo deja siempre como "Opcional: ..."
+  const rawWow = String(recipe.wow ?? "").trim();
+
+  const wowCore = rawWow
+    .replace(/^Opcional\s*\(WOW\)\s*:\s*/i, "")
+    .replace(/^Opcional\s*:\s*/i, "")
+    .trim();
+
+  const normalizedWow = wowCore ? `Opcional: ${wowCore}` : "";
+
+  recipe.wow = normalizedWow;
+
+  // 2) Fuerza que el step opcional WOW sea exactamente el mismo contenido (wowCore)
+  if (Array.isArray(recipe.steps)) {
+    recipe.steps = recipe.steps.filter((s: any) => {
+      const t = String(s?.text ?? "");
+      return !/^Opcional\s*\(WOW\)\s*:/i.test(t);
+    });
+
+    if (wowCore) {
+      recipe.steps.push({
+        text: `Opcional (WOW): ${wowCore}`,
+        timerSec: 0,
+      });
+    }
+  }
+
+  return recipe;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -63,6 +96,10 @@ export async function POST(req: Request) {
         - "Opcional: termina con crujiente (pan rallado tostado) por encima justo al servir."
         - "Opcional: marca el pollo 1 min extra al final para bordes más dorados."
         - PROHIBIDO: frases tipo “queda espectacular”, “muy rico”, “se ve increíble” sin acción concreta.
+        Integración WOW en pasos:
+        - Añade SIEMPRE 1 paso opcional al final (antes de servir) que empiece por "Opcional (WOW):"
+        - Ese paso debe describir exactamente cómo ejecutar el wow.
+        - timerSec normalmente 0 (salvo que sea 1-2 min al final).
 
         Preferencias del usuario:
         - cocina=${cuisine}
@@ -100,7 +137,7 @@ export async function POST(req: Request) {
     // Intento 1: parsear
     let recipe: any;
     try {
-      recipe = JSON.parse(text);
+      recipe = normalizeWow(JSON.parse(text));
     } catch {
       // Retry 1: “arregla el JSON” (solo 1 vez)
       const fix = await client.responses.create({
@@ -116,7 +153,7 @@ export async function POST(req: Request) {
         max_output_tokens: 500,
       });
       text = (fix.output_text || "").trim();
-      recipe = JSON.parse(text);
+      recipe = normalizeWow(JSON.parse(text));
     }
 
     return Response.json({ recipe });
