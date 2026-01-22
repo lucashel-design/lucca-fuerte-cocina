@@ -62,8 +62,16 @@ export default function PickPage() {
 
     setLoading(true);
     try {
-      const retryPrompt =
-        `${prompt}\n\nDame OTRA idea distinta (cambia sabor/técnica). Mantén 20 min, 4-6 ingredientes, 1 wow, 1 truco, 1 error+arreglo, sustitutos baratos.`;
+      const prevTitle = recipe?.title ?? "";
+
+    const retryPrompt =
+    `${prompt}\n\n` +
+    `PROPUESTA ANTERIOR (NO REPETIR): "${prevTitle}".\n` +
+    `REGLA: Quiero una IDEA COMPLETAMENTE DISTINTA. Está PROHIBIDO repetir el mismo plato o una variación.\n` +
+    `Si la anterior era de la familia "nuggets/fingers/empanado/crujiente", PROHIBIDO empanar o hacer nuggets/fingers/milanesa.\n` +
+    `Cambia de categoría: por ejemplo tortilla/tortillitas, salteado, bowl, ensalada templada, brochetas, revuelto, arroz a la sartén.\n` +
+    `Mantén: 20 min, 4-6 ingredientes, 1 momento wow, 1 truco, 1 error común + arreglo, sustitutos baratos.\n` +
+    `Devuélvelo en el mismo JSON de receta.`;
 
       const res = await fetch("/api/recipe", {
         method: "POST",
