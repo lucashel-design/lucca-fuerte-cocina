@@ -148,6 +148,12 @@ export default function HomePage() {
   async function cookWithPrompt(prompt: string) {
   const text = prompt.trim();
   if (!text || loading) return;
+  
+  setMessages((prev) => [
+    ...prev,
+    { role: "user", content: prompt },
+    { role: "assistant", content: "Perfecto. Dame 5 segundos y te lo dejo listo 👨‍🍳" },
+  ]);
 
   setLoading(true);
 
