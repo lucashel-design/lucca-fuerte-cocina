@@ -17,6 +17,17 @@ type Recipe = {
   zeyraOptional: null | { title: string; text: string; url: string };
 };
 
+type Prefs = {
+  cuisine: string;
+  equipment: {
+    airfryer: boolean;
+    thermomix: boolean;
+    horno: boolean;
+    ollaExpress: boolean;
+  };
+};
+
+const PREFS_KEY = "lucca_prefs_v1";
 const RECIPE_KEY = "lucca_current_recipe_v1";
 const PROMPT_KEY = "lucca_last_prompt_v1";
 
@@ -24,6 +35,14 @@ export default function PickPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [prefs, setPrefs] = useState<Prefs | null>(null);
+
+    useEffect(() => {
+    try {
+        const raw = localStorage.getItem(PREFS_KEY);
+        if (raw) setPrefs(JSON.parse(raw));
+    } catch {}
+    }, []);
 
   useEffect(() => {
     try {
@@ -49,7 +68,7 @@ export default function PickPage() {
       const res = await fetch("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage: retryPrompt }),
+        body: JSON.stringify({ userMessage: retryPrompt, prefs: prefs ?? undefined }),
       });
 
       const data = await res.json();
