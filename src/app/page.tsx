@@ -51,6 +51,7 @@ export default function HomePage() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [showSettings, setShowSettings] = useState(false);
   const [servingsOpen, setServingsOpen] = useState(false);
+  const [fromChat, setFromChat] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [servings, setServings] = useState(2);
   const STYLE_OPTIONS = [
@@ -188,10 +189,16 @@ export default function HomePage() {
   async function send() {
     const text = input.trim();
     if (!text || loading) return;
-    setInput("");
-    await sendWithText(text);
-  }
 
+    setInput("");
+
+    // Abrimos flujo estilo->raciones y luego cocinar con ese prompt
+    setFromChat(true);
+    setPendingPrompt(text);
+    setSelectedStyles([]);
+    setServings(2);
+    setStylesOpen(true);
+  }
 
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 96 }}>
@@ -415,6 +422,7 @@ export default function HomePage() {
                   setServingsOpen(false);
                   const p = pendingPrompt;
                   setPendingPrompt(null);
+                  setFromChat(false);
                   await cookWithPrompt(p);
                 }}
                 style={{
