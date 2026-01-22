@@ -53,6 +53,24 @@ export default function HomePage() {
   const [servingsOpen, setServingsOpen] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [servings, setServings] = useState(2);
+  const STYLE_OPTIONS = [
+    "Saludable",
+    "Comfort",
+    "Alto en proteína",
+    "Sin gluten",
+    "Vegano",
+    "Cena rápida",
+    "Para niños",
+    "Snack",
+    "Bajo presupuesto",
+  ];
+
+  const [stylesOpen, setStylesOpen] = useState(false);
+  const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
+
+  function toggleStyle(s: string) {
+    setSelectedStyles((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+  }
 
   // Cargar prefs al iniciar (solo en cliente)
   useEffect(() => {
@@ -132,7 +150,8 @@ export default function HomePage() {
 
   setLoading(true);
 
-  const finalPrompt = `${prompt}\nRACIONES: ${servings}`;
+  const styleLine = selectedStyles.length ? `ESTILO: ${selectedStyles.join(", ")}` : "";
+  const finalPrompt = [prompt, styleLine, `RACIONES: ${servings}`].filter(Boolean).join("\n");
 
   try {
     const res = await fetch("/api/recipe", {
@@ -207,7 +226,9 @@ export default function HomePage() {
             key={q.label}
             onClick={() => {
               setPendingPrompt(q.text);
-              setServingsOpen(true);
+              setSelectedStyles([]);
+              setServings(2);
+              setStylesOpen(true);
             }}
             style={{
               padding: "8px 10px",
@@ -226,9 +247,102 @@ export default function HomePage() {
         ))}
       </div>
 
+      {stylesOpen && (
+        <div
+          onClick={() => setStylesOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 60,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 520,
+              background: "#fff",
+              borderRadius: 16,
+              border: "1px solid #111",
+              padding: 16,
+            }}
+          >
+            <div style={{ fontWeight: 900, marginBottom: 10 }}>¿Qué estilo te apetece?</div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              {STYLE_OPTIONS.map((s) => {
+                const active = selectedStyles.includes(s);
+                return (
+                  <button
+                    key={s}
+                    onClick={() => toggleStyle(s)}
+                    style={{
+                      border: "1px solid #111",
+                      padding: "10px 12px",
+                      borderRadius: 999,
+                      background: active ? "#111" : "#fff",
+                      color: active ? "#fff" : "#111",
+                      fontWeight: 900,
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => setStylesOpen(false)}
+                style={{
+                  flex: 1,
+                  border: "1px solid #111",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  background: "#fff",
+                  cursor: "pointer",
+                  fontWeight: 900,
+                }}
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={() => {
+                  setStylesOpen(false);
+                  setServingsOpen(true);
+                }}
+                style={{
+                  flex: 1,
+                  border: "1px solid #111",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  background: "#111",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: 900,
+                }}
+              >
+                Seguir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {servingsOpen && (
         <div
-          onClick={() => setServingsOpen(false)}
+          onClick={() => {
+            setServingsOpen(false);
+            setPendingPrompt(null);
+          }}
           style={{
             position: "fixed",
             inset: 0,
@@ -251,7 +365,9 @@ export default function HomePage() {
               padding: 16,
             }}
           >
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>¿Para cuántas personas?</div>
+            <div style={{ fontWeight: 900, marginBottom: 10 }}>
+              ¿Para cuántas personas?
+            </div>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               {[1, 2, 3, 4, 5, 6].map((n) => (
@@ -274,26 +390,47 @@ export default function HomePage() {
               ))}
             </div>
 
-            <button
-              onClick={async () => {
-                if (!pendingPrompt) return;
-                setServingsOpen(false);
-                await cookWithPrompt(pendingPrompt);
-                setPendingPrompt(null);
-              }}
-              style={{
-                width: "100%",
-                border: "1px solid #111",
-                padding: "12px 12px",
-                borderRadius: 14,
-                background: "#111",
-                color: "#fff",
-                fontWeight: 900,
-                cursor: "pointer",
-              }}
-            >
-              Cocinar
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => {
+                  setServingsOpen(false);
+                  setPendingPrompt(null);
+                }}
+                style={{
+                  flex: 1,
+                  border: "1px solid #111",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  background: "#fff",
+                  cursor: "pointer",
+                  fontWeight: 900,
+                }}
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (!pendingPrompt) return;
+                  setServingsOpen(false);
+                  const p = pendingPrompt;
+                  setPendingPrompt(null);
+                  await cookWithPrompt(p);
+                }}
+                style={{
+                  flex: 1,
+                  border: "1px solid #111",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  background: "#111",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: 900,
+                }}
+              >
+                Cocinar
+              </button>
+            </div>
           </div>
         </div>
       )}
