@@ -160,6 +160,8 @@ export default function HomePage() {
   const styleLine = selectedStyles.length ? `ESTILO: ${selectedStyles.join(", ")}` : "";
   const finalPrompt = [prompt, styleLine, `RACIONES: ${servings}`].filter(Boolean).join("\n");
 
+  sessionStorage.setItem("lucca_last_prompt_v1", finalPrompt);
+
   try {
     const res = await fetch("/api/recipe", {
       method: "POST",
@@ -181,7 +183,7 @@ export default function HomePage() {
     sessionStorage.setItem("lucca_current_recipe_v1", JSON.stringify(data.recipe));
 
     // Ir directo a modo cocina
-    window.location.href = "/cook";
+    window.location.href = "/pick";
     } catch (e: any) {
       setMessages((prev) => [
         ...prev,
