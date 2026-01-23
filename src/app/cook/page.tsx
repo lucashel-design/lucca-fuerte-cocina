@@ -545,9 +545,6 @@ export default function CookPage() {
           <div style={{ marginBottom: 8 }}>
             <b>ARREGLO:</b> {recipe.fix}
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <b>WOW:</b> {recipe.wow}
-          </div>
 
           <div style={{ fontWeight: 800, marginTop: 8, marginBottom: 6 }}>
             Emplatado
