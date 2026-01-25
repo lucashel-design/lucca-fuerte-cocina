@@ -90,11 +90,21 @@ export default function CookPage() {
 
   // Load recipe from sessionStorage
   useEffect(() => {
-    try {
+  try {
       const raw = sessionStorage.getItem(KEY);
-      if (raw) setRecipe(JSON.parse(raw));
+      if (raw) {
+        const r = JSON.parse(raw);
+        setRecipe(r);
+
+        // Guardamos la lista de ingredientes para usarla más adelante
+        sessionStorage.setItem(
+          "lucca_last_ingredients_v1",
+          JSON.stringify(r.ingredients || [])
+        );
+      }
     } catch {}
   }, []);
+
 
   // Whenever step changes, reset timer to step timerSec
   useEffect(() => {

@@ -47,9 +47,19 @@ export default function PickPage() {
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(RECIPE_KEY);
-      if (raw) setRecipe(JSON.parse(raw));
+      if (raw) {
+        const r = JSON.parse(raw);
+        setRecipe(r);
+
+        sessionStorage.setItem("lucca_last_title_v1", String(r.title || ""));
+        sessionStorage.setItem(
+          "lucca_last_recipe_min_v1",
+          JSON.stringify({ title: r.title || "", ingredients: r.ingredients || [] })
+        );
+      }
     } catch {}
   }, []);
+
 
   async function dislikeAndGetAnother() {
     setErr(null);
