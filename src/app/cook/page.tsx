@@ -31,10 +31,6 @@ function formatMMSS(sec: number) {
 export default function CookPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
-  const [missingOpen, setMissingOpen] = useState(false);
-  const [missingMap, setMissingMap] = useState<Record<string, boolean>>({});
-  const [regenLoading, setRegenLoading] = useState(false);
-  const [regenErr, setRegenErr] = useState<string | null>(null);
   const [prepDone, setPrepDone] = useState(false);
   const [missingText, setMissingText] = useState("");
   const [missingList, setMissingList] = useState<string[]>([]);
@@ -85,77 +81,6 @@ export default function CookPage() {
         o.start();
         setTimeout(() => o.stop(), 250);
     } catch {}
-    }
-
-    function openMissingModal() {
-      if (!recipe) return;
-      const initial: Record<string, boolean> = {};
-      for (const ing of recipe.ingredients || []) initial[ing.item] = false;
-      setMissingMap(initial);
-      setRegenErr(null);
-      setMissingOpen(true);
-    }
-
-    async function regenerateWithoutMissing() {
-      if (!recipe) return;
-
-      const missingList = Object.entries(missingMap)
-        .filter(([_, v]) => v)
-        .map(([k]) => k);
-
-      if (missingList.length === 0) {
-        setMissingOpen(false);
-        return;
-      }
-
-      setRegenLoading(true);
-      setRegenErr(null);
-
-      try {
-        const basePrompt = sessionStorage.getItem(PROMPT_KEY) || "";
-        const missingLine = `FALTAN (NO USAR): ${missingList.join(", ")}`;
-
-        const regenPrompt =
-          `${basePrompt}\n` +
-          `${missingLine}\n\n` +
-          `Reglas:\n` +
-          `- Mantén TODAS las restricciones del pedido original (categoría, estilo, equipo/método, tiempo, etc.).\n` +
-          `- No uses los ingredientes marcados como FALTAN.\n` +
-          `- Propón sustitutos baratos (en substitutes) y reescribe ingredientes + pasos.\n` +
-          `- Si NO es posible sin esos ingredientes, devuelve una receta completamente distinta pero que cumpla las mismas restricciones.\n`;
-
-        let prefs: any = undefined;
-        try {
-          const raw = localStorage.getItem(PREFS_KEY);
-          if (raw) prefs = JSON.parse(raw);
-        } catch {}
-
-        const res = await fetch("/api/recipe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userMessage: regenPrompt, prefs }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          setRegenErr(data?.error || "No se pudo regenerar la receta.");
-          return;
-        }
-
-        // Actualiza receta en memoria y sessionStorage
-        sessionStorage.setItem(KEY, JSON.stringify(data.recipe));
-        sessionStorage.setItem("lucca_last_ingredients_v1", JSON.stringify(data.recipe?.ingredients || []));
-
-        setRecipe(data.recipe);
-        setStepIdx(0);
-        setRunning(false);
-        setMissingOpen(false);
-      } catch (e: any) {
-        setRegenErr(e?.message || String(e));
-      } finally {
-        setRegenLoading(false);
-      }
     }
 
   const currentStep = useMemo(() => {
@@ -317,105 +242,6 @@ export default function CookPage() {
         </div>
 
         <button
-        onClick={() => setMissingOpen(true)}
-        style={{
-            marginTop: 12,
-            width: "100%",
-            border: "1px solid #111",
-            background: "#fff",
-            color: "#111",
-            padding: "12px 12px",
-            borderRadius: 14,
-            cursor: "pointer",
-            fontWeight: 900,
-        }}
-        >
-        Me falta un ingrediente
-        </button>
-
-        {missingOpen && (
-            <div
-                onClick={() => setMissingOpen(false)}
-                style={{
-                position: "fixed",
-                inset: 0,
-                background: "rgba(0,0,0,0.35)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 16,
-                zIndex: 60,
-                }}
-            >
-                <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                    width: "100%",
-                    maxWidth: 520,
-                    background: "#fff",
-                    borderRadius: 16,
-                    border: "1px solid #111",
-                    padding: 16,
-                }}
-                >
-                <div style={{ fontWeight: 900, marginBottom: 10 }}>¿Qué te falta?</div>
-
-                <input
-                    value={missingText}
-                    onChange={(e) => setMissingText(e.target.value)}
-                    placeholder="Ej: limón / ajo / tomate…"
-                    style={{
-                    width: "100%",
-                    padding: 12,
-                    borderRadius: 12,
-                    border: "1px solid #111",
-                    marginBottom: 10,
-                    }}
-                />
-
-                <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                    onClick={() => setMissingOpen(false)}
-                    style={{
-                        flex: 1,
-                        border: "1px solid #111",
-                        padding: "10px 12px",
-                        borderRadius: 12,
-                        background: "#fff",
-                        cursor: "pointer",
-                        fontWeight: 900,
-                    }}
-                    >
-                    Cancelar
-                    </button>
-
-                    <button
-                    onClick={() => {
-                        const m = missingText.trim();
-                        if (!m) return;
-                        setMissingList((prev) => (prev.includes(m) ? prev : [...prev, m]));
-                        setMissingText("");
-                        setMissingOpen(false);
-                    }}
-                    style={{
-                        flex: 1,
-                        border: "1px solid #111",
-                        padding: "10px 12px",
-                        borderRadius: 12,
-                        background: "#111",
-                        color: "#fff",
-                        cursor: "pointer",
-                        fontWeight: 900,
-                    }}
-                    >
-                    Añadir
-                    </button>
-                </div>
-                </div>
-            </div>
-            )}
-
-        <button
             onClick={() => {
             setPrepDone(true);
             setStepIdx(0);
@@ -520,25 +346,6 @@ export default function CookPage() {
           }}
         >
           {currentStep?.text}
-        </div>
-
-        <div style={{ marginTop: 12 }}>
-          <button
-            onClick={openMissingModal}
-            style={{
-              border: "1px solid #111",
-              background: "#fff",
-              color: "#111",
-              padding: "10px 12px",
-              borderRadius: 12,
-              cursor: "pointer",
-              fontWeight: 800,
-              width: "100%",
-              textAlign: "left",
-            }}
-          >
-            ¿Te falta algún ingrediente? (cámbialo)
-          </button>
         </div>
 
         {/* ✅ AVISO EN PANTALLA CUANDO TERMINA EL TIMER */}
@@ -658,95 +465,6 @@ export default function CookPage() {
               <li key={idx}>{t}</li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {missingOpen && (
-        <div
-          onClick={() => setMissingOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 90,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 520,
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #111",
-              padding: 16,
-            }}
-          >
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>
-              Marca lo que te falta (y lo adapto)
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflow: "auto" }}>
-              {(recipe.ingredients || []).map((ing, idx) => (
-                <label key={idx} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={!!missingMap[ing.item]}
-                    onChange={() =>
-                      setMissingMap((prev) => ({ ...prev, [ing.item]: !prev[ing.item] }))
-                    }
-                  />
-                  <span style={{ fontWeight: 700 }}>
-                    {ing.item} <span style={{ fontWeight: 400, opacity: 0.75 }}>{ing.amount ? `— ${ing.amount}` : ""}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-
-            {regenErr && (
-              <div style={{ marginTop: 10, border: "1px solid #c00", padding: 10, borderRadius: 12 }}>
-                ⚠️ {regenErr}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <button
-                onClick={() => setMissingOpen(false)}
-                style={{
-                  flex: 1,
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                Cancelar
-              </button>
-
-              <button
-                onClick={regenerateWithoutMissing}
-                disabled={regenLoading}
-                style={{
-                  flex: 1,
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: regenLoading ? "#999" : "#111",
-                  color: "#fff",
-                  cursor: regenLoading ? "not-allowed" : "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                {regenLoading ? "Adaptando…" : "Adaptar receta"}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </main>
