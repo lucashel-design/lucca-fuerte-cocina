@@ -199,7 +199,7 @@ export default function PickPage() {
 
         <button
           onClick={() => {
-            window.location.href = "/cook";
+            window.location.href = "/prep";
           }}
           style={{
             flex: 1,
