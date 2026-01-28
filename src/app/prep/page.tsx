@@ -149,7 +149,7 @@ export default function PrepPage() {
             {recipe.timeMinutes} min · {recipe.servings} raciones · {ingredientCount} ingredientes
           </div>
         </div>
-        <a href="/" style={{ border: "1px solid #111", padding: "8px 10px", borderRadius: 12 }}>
+        <a href="/pick" style={{ border: "1px solid #111", padding: "8px 10px", borderRadius: 12 }}>
           Salir
         </a>
       </div>
