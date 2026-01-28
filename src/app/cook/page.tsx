@@ -237,17 +237,26 @@ export default function CookPage() {
         <button
           onClick={() => {
             setJustFinished(false);
+
+            // Si estoy en el primer paso, volver significa volver a Preparación
+            if (stepIdx === 0) {
+              window.location.href = "/prep";
+              return;
+            }
+
+            // Si no, retrocedo un paso normal
             setStepIdx((i) => Math.max(0, i - 1));
           }}
-          disabled={stepIdx === 0}
+          disabled={!recipe || total <= 0}
+
           style={{
             flex: 1,
             border: "1px solid #111",
-            background: stepIdx === 0 ? "#ddd" : "#fff",
+            background: "#fff",
             color: "#111",
             padding: "12px 12px",
             borderRadius: 14,
-            cursor: stepIdx === 0 ? "not-allowed" : "pointer",
+            cursor: "pointer",
             fontWeight: 800,
           }}
         >
