@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 type Recipe = {
   title: string;
+  menuPitch?: string;
   timeMinutes: number;
   servings: number;
   ingredients: { item: string; amount: string }[];
@@ -16,6 +17,7 @@ type Recipe = {
   platingTips: string[];
   zeyraOptional: null | { title: string; text: string; url: string };
 };
+
 
 type Prefs = {
   cuisine: string;
@@ -30,6 +32,36 @@ type Prefs = {
 const PREFS_KEY = "lucca_prefs_v1";
 const RECIPE_KEY = "lucca_current_recipe_v1";
 const PROMPT_KEY = "lucca_last_prompt_v1";
+
+function svgCardDataUri(title: string) {
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").slice(0, 60);
+
+  const t = esc(title);
+
+  const svg = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675">
+    <defs>
+      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#111"/>
+        <stop offset="1" stop-color="#444"/>
+      </linearGradient>
+      <radialGradient id="p" cx="50%" cy="45%" r="55%">
+        <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+        <stop offset="1" stop-color="#ddd" stop-opacity="0.15"/>
+      </radialGradient>
+    </defs>
+    <rect width="1200" height="675" fill="url(#g)"/>
+    <circle cx="600" cy="320" r="250" fill="url(#p)" />
+    <circle cx="600" cy="320" r="210" fill="none" stroke="#fff" stroke-opacity="0.25" stroke-width="10"/>
+    <text x="60" y="610" fill="#fff" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="54" font-weight="800">
+      ${t}
+    </text>
+  </svg>
+  `.trim();
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
 
 export default function PickPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
@@ -147,30 +179,31 @@ export default function PickPage() {
       </div>
 
       <div style={{ marginTop: 14, border: "1px solid #111", borderRadius: 16, padding: 16 }}>
-        <div style={{ fontWeight: 900, marginBottom: 8 }}>Resumen rápido</div>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Carta rápida</div>
 
-        <div style={{ marginBottom: 10 }}>
-          <b>WOW:</b> {recipe.wow}
+        <img
+          src={svgCardDataUri(recipe.title)}
+          alt={recipe.title}
+          style={{
+            width: "100%",
+            height: 220,
+            borderRadius: 14,
+            objectFit: "cover",
+            border: "1px solid #111",
+          }}
+        />
+
+        <div style={{ marginTop: 12, fontSize: 18, fontWeight: 950, lineHeight: 1.15 }}>
+          {recipe.title}
         </div>
 
-        <div style={{ fontWeight: 900, marginBottom: 6 }}>Ingredientes (top)</div>
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
-          {recipe.ingredients.slice(0, 6).map((ing, idx) => (
-            <li key={idx}>
-              {ing.item}
-              {ing.amount ? ` — ${ing.amount}` : ""}
-            </li>
-          ))}
-        </ul>
+        <div style={{ marginTop: 8, fontSize: 14, opacity: 0.85, lineHeight: 1.35 }}>
+          {recipe.menuPitch || "Fácil, rico y listo en 20 minutos. Sin complicarte."}
+        </div>
 
-        <div style={{ fontWeight: 900, marginTop: 12, marginBottom: 6 }}>Sustitutos baratos</div>
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
-          {recipe.substitutes.slice(0, 3).map((s, idx) => (
-            <li key={idx}>
-              Si no hay <b>{s.for}</b> → {s.instead}
-            </li>
-          ))}
-        </ul>
+        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
+          {recipe.timeMinutes} min · {recipe.servings} raciones
+        </div>
 
         {err && (
           <div style={{ marginTop: 12, border: "1px solid #c00", padding: 10, borderRadius: 12 }}>

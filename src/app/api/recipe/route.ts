@@ -87,6 +87,7 @@ export async function POST(req: Request) {
         - platingTips (2-3)
         - steps con timerSec cuando aplique (0 si no aplica)
         - Respeta servings si el usuario pone RACIONES: N y rellena servings con N.
+        - menuPitch (1 frase tipo carta: “jugoso, fácil, de 20 min”, sin sonar a marketing barato)
 
         WOW (campo "wow"):
         - Debe ser una IDEA OPCIONAL para impresionar, NO una opinión sobre el plato.
@@ -108,18 +109,19 @@ export async function POST(req: Request) {
 
         ESQUEMA JSON (respétalo):
         {
-        "title": "string",
-        "timeMinutes": number,
-        "servings": number,
-        "ingredients": [{"item":"string","amount":"string"}],
-        "substitutes": [{"for":"string","instead":"string"}],
-        "steps": [{"text":"string","timerSec":number}],
-        "trick": "string",
-        "errorCommon": "string",
-        "fix": "string",
-        "wow": "string",
-        "platingTips": ["string","string","string"],
-        "zeyraOptional": null
+          "title": "string",
+          "menuPitch": "string",
+          "timeMinutes": number,
+          "servings": number,
+          "ingredients": [{"item":"string","amount":"string"}],
+          "substitutes": [{"for":"string","instead":"string"}],
+          "steps": [{"text":"string","timerSec":number}],
+          "trick": "string",
+          "errorCommon": "string",
+          "fix": "string",
+          "wow": "string",
+          "platingTips": ["string","string","string"],
+          "zeyraOptional": null
         }
         `.trim();
 
