@@ -166,11 +166,8 @@ export default function PickPage() {
     <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Tinder de platos</div>
-          <h1 style={{ fontSize: 22, fontWeight: 950, margin: "6px 0 2px" }}>{recipe.title}</h1>
-          <div style={{ fontSize: 13, opacity: 0.8 }}>
-            {recipe.timeMinutes} min · {recipe.servings} raciones
-          </div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Match de platos</div>
+          <div style={{ fontSize: 14, fontWeight: 950, margin: "6px 0 2px" }}>Elige tu plato</div>
         </div>
 
         <a href="/" style={{ border: "1px solid #111", padding: "8px 10px", borderRadius: 12 }}>
@@ -179,7 +176,7 @@ export default function PickPage() {
       </div>
 
       <div style={{ marginTop: 14, border: "1px solid #111", borderRadius: 16, padding: 16 }}>
-        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Carta rápida</div>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Sugerencias del Chef:</div>
 
         <img
           src={svgCardDataUri(recipe.title)}

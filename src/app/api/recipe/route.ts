@@ -78,6 +78,13 @@ export async function POST(req: Request) {
         Medidas por defecto informales: "puñado", "vaso", "cucharada", "chorrito", "pizca".
         PROHIBIDO usar g/kg/ml/l (salvo repostería o si el usuario pide "modo exacto").
 
+        menuPitch:
+        - 1 sola frase, tono carta/menú (apetitoso y simple).
+        - No repitas el título ni uses comillas.
+        - Menciona 1-2 atributos reales (ej: “jugosa”, “crujiente”, “cremosa”, “fresquita”, “picantita suave”).
+        - Si el usuario pide Postre, debe sonar a postre (dulce, textura, frío/caliente).
+        - Evita “viral”, “increíble”, “brutal”, “te va a encantar” (marketing).
+
         Incluye SIEMPRE:
         - substitutes (2-3) baratos
         - trick (1)
