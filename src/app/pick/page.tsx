@@ -32,6 +32,7 @@ type Prefs = {
 const PREFS_KEY = "lucca_prefs_v1";
 const RECIPE_KEY = "lucca_current_recipe_v1";
 const PROMPT_KEY = "lucca_last_prompt_v1";
+const DIVERSITY_KEY = "lucca_pick_diversity_v1";
 
 function svgCardDataUri(title: string) {
   const esc = (s: string) =>
@@ -63,6 +64,51 @@ function svgCardDataUri(title: string) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+function fallbackMenuPitch(title: string) {
+  const t = title.toLowerCase();
+
+  if (t.includes("tortilla")) return "Jugosa por dentro, doradita por fuera. Sencilla y de las que apetecen.";
+  if (t.includes("airfryer")) return "Crujiente sin fritanga. Rápido, limpio y con sabor.";
+  if (t.includes("ensalada")) return "Fresquita, completa y con proteína. Nada de ensalada triste.";
+  if (t.includes("pasta")) return "Cremosa y reconfortante. De las que se hacen y se repiten.";
+  if (t.includes("pollo")) return "Jugoso y bien sazonado. Cena rápida sin complicarte.";
+  if (t.includes("postre") || t.includes("bizcocho") || t.includes("yogur"))
+    return "Dulce y ligero, con textura rica. Perfecto para quitar el antojo sin pasarte.";
+
+  return "Sabroso, fácil y listo en 20 minutos. Sin complicarte.";
+}
+
+function guessFamiliesFromTitle(title: string) {
+  const t = title.toLowerCase();
+  const fam: string[] = [];
+
+  // Proteínas / bases comunes
+  if (t.includes("pollo")) fam.push("pollo");
+  if (t.includes("atún") || t.includes("atun") || t.includes("sardina") || t.includes("salmón") || t.includes("salmon"))
+    fam.push("pescado en lata / pescado");
+  if (t.includes("huevo") || t.includes("tortilla")) fam.push("huevo/tortilla");
+  if (t.includes("pasta") || t.includes("espagueti") || t.includes("penne")) fam.push("pasta");
+  if (t.includes("arroz")) fam.push("arroz");
+  if (t.includes("ensalada")) fam.push("ensalada");
+  if (t.includes("postre") || t.includes("bizcocho") || t.includes("yogur") || t.includes("chocolate"))
+    fam.push("postre");
+
+  // Métodos / estilos repetitivos
+  if (t.includes("airfryer")) fam.push("airfryer");
+  if (t.includes("cruj") || t.includes("empan") || t.includes("nugget") || t.includes("fingers"))
+    fam.push("crujiente/empanado");
+
+  return fam;
+}
+
+function addToDiversity(title: string) {
+  try {
+    const prev = JSON.parse(sessionStorage.getItem(DIVERSITY_KEY) || "[]") as string[];
+    const next = Array.from(new Set([...prev, ...guessFamiliesFromTitle(title)])).slice(-12);
+    sessionStorage.setItem(DIVERSITY_KEY, JSON.stringify(next));
+  } catch {}
+}
+
 export default function PickPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(false);
@@ -82,6 +128,7 @@ export default function PickPage() {
       if (raw) {
         const r = JSON.parse(raw);
         setRecipe(r);
+        addToDiversity(String(r.title || ""));
 
         sessionStorage.setItem("lucca_last_title_v1", String(r.title || ""));
         sessionStorage.setItem(
@@ -107,6 +154,12 @@ export default function PickPage() {
         const prevTitle = recipe?.title ?? "";
         const base = prompt || "";
 
+        let banned = "";
+          try {
+            const list = JSON.parse(sessionStorage.getItem(DIVERSITY_KEY) || "[]") as string[];
+            if (list.length) banned = list.join(", ");
+          } catch {}
+
         const retryPrompt =
         `${base}\n\n` +
         `PROPUESTA ANTERIOR (NO REPETIR): "${prevTitle}".\n` +
@@ -115,6 +168,10 @@ export default function PickPage() {
         `2) Quiero una IDEA COMPLETAMENTE DISTINTA: NO vale renombrar el mismo plato ni cambiar 1 ingrediente.\n` +
         `3) Prohibido repetir la MISMA FAMILIA del plato anterior (ej: nuggets/fingers/empanado/crujiente = prohibido seguir empanando o haciendo fingers).\n` +
         `4) Si tu nueva idea rompe alguna restricción del original, descártala y genera otra antes de responder.\n` +
+        `DIVERSIDAD (MUY IMPORTANTE):\n` +
+        `5) Evita repetir estas familias ya usadas: ${banned || "ninguna"}.\n` +
+        `6) Si la propuesta anterior fue de pollo, la siguiente NO puede llevar pollo.\n` +
+        `7) Prioriza cambiar la BASE: (pasta/arroz/huevo/legumbre/verdura/pescado en lata) y el método.\n` +
         `Devuelve SOLO el JSON del esquema.\n`;
 
       const res = await fetch("/api/recipe", {
@@ -132,6 +189,7 @@ export default function PickPage() {
 
       sessionStorage.setItem(RECIPE_KEY, JSON.stringify(data.recipe));
       setRecipe(data.recipe);
+      addToDiversity(String(data.recipe?.title || ""));
     } catch (e: any) {
       setErr(e?.message || String(e));
     } finally {
@@ -195,7 +253,7 @@ export default function PickPage() {
         </div>
 
         <div style={{ marginTop: 8, fontSize: 14, opacity: 0.85, lineHeight: 1.35 }}>
-          {recipe.menuPitch || "Fácil, rico y listo en 20 minutos. Sin complicarte."}
+          {recipe.menuPitch || fallbackMenuPitch(recipe.title)}
         </div>
 
         <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
