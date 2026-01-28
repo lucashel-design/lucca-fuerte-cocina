@@ -18,8 +18,6 @@ type Recipe = {
 };
 
 const KEY = "lucca_current_recipe_v1";
-const PROMPT_KEY = "lucca_last_prompt_v1";
-const PREFS_KEY = "lucca_prefs_v1";
 
 function formatMMSS(sec: number) {
   const s = Math.max(0, Math.floor(sec));
@@ -31,82 +29,62 @@ function formatMMSS(sec: number) {
 export default function CookPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
-  const [prepDone, setPrepDone] = useState(false);
-  const [missingText, setMissingText] = useState("");
-  const [missingList, setMissingList] = useState<string[]>([]);
-
 
   // Timer
   const [running, setRunning] = useState(false);
   const [remaining, setRemaining] = useState(0);
   const [justFinished, setJustFinished] = useState(false);
   const tickRef = useRef<number | null>(null);
+
+  // Audio
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-    function unlockAudio() {
+  function unlockAudio() {
     try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioCtx) return;
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
 
-        if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioCtx();
-        }
-
-        // En algunos móviles queda “suspended” hasta un gesto
-        if (audioCtxRef.current.state === "suspended") {
-        audioCtxRef.current.resume();
-        }
+      if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
+      if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
     } catch {}
-    }
+  }
 
-    function beep() {
+  function beep() {
     try {
-        const ctx = audioCtxRef.current;
-        if (!ctx) return;
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
 
-        if (ctx.state === "suspended") {
-        ctx.resume();
-        }
+      if (ctx.state === "suspended") ctx.resume();
 
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
 
-        o.type = "sine";
-        o.frequency.value = 880;
-        g.gain.value = 0.06;
+      o.type = "sine";
+      o.frequency.value = 880;
+      g.gain.value = 0.06;
 
-        o.connect(g);
-        g.connect(ctx.destination);
+      o.connect(g);
+      g.connect(ctx.destination);
 
-        o.start();
-        setTimeout(() => o.stop(), 250);
+      o.start();
+      setTimeout(() => o.stop(), 250);
     } catch {}
-    }
+  }
 
   const currentStep = useMemo(() => {
     if (!recipe) return null;
     return recipe.steps[Math.min(stepIdx, recipe.steps.length - 1)];
   }, [recipe, stepIdx]);
 
-  // Load recipe from sessionStorage
+  // Load recipe
   useEffect(() => {
-  try {
+    try {
       const raw = sessionStorage.getItem(KEY);
-      if (raw) {
-        const r = JSON.parse(raw);
-        setRecipe(r);
-
-        // Guardamos la lista de ingredientes para usarla más adelante
-        sessionStorage.setItem(
-          "lucca_last_ingredients_v1",
-          JSON.stringify(r.ingredients || [])
-        );
-      }
+      if (raw) setRecipe(JSON.parse(raw));
     } catch {}
   }, []);
 
-
-  // Whenever step changes, reset timer to step timerSec
+  // Reset timer when step changes
   useEffect(() => {
     if (!currentStep) return;
     setRunning(false);
@@ -127,18 +105,15 @@ export default function CookPage() {
         if (r <= 1) {
           setRunning(false);
 
-          // Feedback de “terminó”
           try {
             if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
           } catch {}
 
           beep();
 
-            setJustFinished(true);
-            // 👇 Ya NO lo apagamos solo. Se quita al cambiar de paso o al Reset.
-            return 0;
+          setJustFinished(true);
+          return 0;
         }
-
         return r - 1;
       });
     }, 1000);
@@ -152,9 +127,7 @@ export default function CookPage() {
   if (!recipe) {
     return (
       <main style={{ maxWidth: 720, margin: "0 auto", padding: 16 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>
-          Modo Cocina
-        </h1>
+        <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Modo Cocina</h1>
         <p style={{ opacity: 0.8, marginBottom: 12 }}>
           No hay receta cargada aún. Vuelve a Home y genera una receta primero.
         </p>
@@ -165,6 +138,7 @@ export default function CookPage() {
             border: "1px solid #111",
             padding: "10px 12px",
             borderRadius: 12,
+            fontWeight: 800,
           }}
         >
           Ir a Home
@@ -173,185 +147,46 @@ export default function CookPage() {
     );
   }
 
-  if (!prepDone) {
-    return (
-        <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
-            <div>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>Preparación</div>
-            <h1 style={{ fontSize: 20, fontWeight: 900, margin: "6px 0 2px" }}>{recipe.title}</h1>
-            <div style={{ fontSize: 13, opacity: 0.8 }}>
-                {recipe.timeMinutes} min · {recipe.servings} raciones
-            </div>
-            </div>
-
-            <a href="/" style={{ border: "1px solid #111", padding: "8px 10px", borderRadius: 12 }}>
-            Salir
-            </a>
-        </div>
-
-        <div style={{ marginTop: 14, border: "1px solid #111", borderRadius: 16, padding: 16 }}>
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>Saca esto (rápido)</div>
-
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-            {recipe.ingredients.map((ing, idx) => (
-                <li key={idx}>
-                {ing.item}
-                {ing.amount ? ` — ${ing.amount}` : ""}
-                </li>
-            ))}
-            </ul>
-
-            <div style={{ fontWeight: 900, marginTop: 14, marginBottom: 8 }}>Sustitutos baratos</div>
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-            {recipe.substitutes.slice(0, 3).map((s, idx) => (
-                <li key={idx}>
-                Si no hay <b>{s.for}</b> → {s.instead}
-                </li>
-            ))}
-            </ul>
-
-            {missingList.length > 0 && (
-                <div style={{ marginTop: 14, borderTop: "1px solid #eee", paddingTop: 12 }}>
-                    <div style={{ fontWeight: 900, marginBottom: 6 }}>Te falta:</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {missingList.map((m) => (
-                        <span
-                        key={m}
-                        style={{
-                            border: "1px solid #111",
-                            padding: "6px 10px",
-                            borderRadius: 999,
-                            fontWeight: 700,
-                            fontSize: 13,
-                        }}
-                        >
-                        {m}
-                        </span>
-                    ))}
-                    </div>
-                    <div style={{ fontSize: 12, opacity: 0.75, marginTop: 8 }}>
-                    (Luego lo usamos para proponerte sustitutos y ajustar la receta.)
-                    </div>
-                </div>
-                )}
-
-            <div style={{ marginTop: 14, fontSize: 13, opacity: 0.8 }}>
-            Cuando estés listo, te voy guiando paso a paso.
-            </div>
-        </div>
-
-        <button
-            onClick={() => {
-            setPrepDone(true);
-            setStepIdx(0);
-            }}
-            style={{
-            marginTop: 12,
-            width: "100%",
-            border: "1px solid #111",
-            background: "#111",
-            color: "#fff",
-            padding: "14px 12px",
-            borderRadius: 16,
-            cursor: "pointer",
-            fontWeight: 900,
-            fontSize: 16,
-            }}
-        >
-            Empezar
-        </button>
-        </main>
-    );
-    }
-
-
   const total = recipe.steps.length;
   const hasTimer = (currentStep?.timerSec || 0) > 0;
   const showTimerUI = hasTimer && remaining > 0;
 
   return (
-    <main
-      style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 24 }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "start",
-          gap: 12,
-        }}
-      >
+    <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
         <div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Modo Cocina</div>
-          <h1 style={{ fontSize: 20, fontWeight: 900, margin: "6px 0 2px" }}>
-            {recipe.title}
-          </h1>
+          <h1 style={{ fontSize: 20, fontWeight: 900, margin: "6px 0 2px" }}>{recipe.title}</h1>
           <div style={{ fontSize: 13, opacity: 0.8 }}>
             {recipe.timeMinutes} min · {recipe.servings} raciones
           </div>
         </div>
 
-        <a
-          href="/"
-          style={{
-            border: "1px solid #111",
-            padding: "8px 10px",
-            borderRadius: 12,
-          }}
-        >
+        <a href="/" style={{ border: "1px solid #111", padding: "8px 10px", borderRadius: 12 }}>
           Salir
         </a>
       </div>
 
-      <div
-        style={{
-          marginTop: 14,
-          border: "1px solid #111",
-          borderRadius: 16,
-          padding: 16,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 10,
-          }}
-        >
+      <div style={{ marginTop: 14, border: "1px solid #111", borderRadius: 16, padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontWeight: 800 }}>
             Paso {stepIdx + 1} / {total}
           </div>
 
           {showTimerUI && (
-            <div
-              style={{
-                fontFamily: "monospace",
-                fontWeight: 800,
-                fontSize: 18,
-              }}
-            >
+            <div style={{ fontFamily: "monospace", fontWeight: 800, fontSize: 18 }}>
               {formatMMSS(remaining)}
             </div>
           )}
         </div>
 
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 700,
-            lineHeight: 1.25,
-            whiteSpace: "pre-wrap",
-          }}
-        >
+        <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25, whiteSpace: "pre-wrap" }}>
           {currentStep?.text}
         </div>
 
-        {/* ✅ AVISO EN PANTALLA CUANDO TERMINA EL TIMER */}
         {justFinished && (
-          <div style={{ marginTop: 10, fontWeight: 800 }}>
-            ⏰ Tiempo. Dale a “Siguiente”.
+          <div style={{ marginTop: 10, fontWeight: 900 }}>
+            ⏰ Tiempo. Dale a “Avanzar”.
           </div>
         )}
 
@@ -359,12 +194,10 @@ export default function CookPage() {
           <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
             <button
               onClick={() => {
-                // gesto del usuario = desbloquea audio
                 if (!running) unlockAudio();
-
                 setJustFinished(false);
                 setRunning((v) => !v);
-                }}
+              }}
               style={{
                 border: "1px solid #111",
                 background: "#111",
@@ -402,7 +235,10 @@ export default function CookPage() {
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button
-          onClick={() => {setJustFinished(false); setStepIdx((i) => Math.max(0, i - 1))}}
+          onClick={() => {
+            setJustFinished(false);
+            setStepIdx((i) => Math.max(0, i - 1));
+          }}
           disabled={stepIdx === 0}
           style={{
             flex: 1,
@@ -415,11 +251,14 @@ export default function CookPage() {
             fontWeight: 800,
           }}
         >
-          Anterior
+          Volver
         </button>
 
         <button
-          onClick={() => {setJustFinished(false); setStepIdx((i) => Math.min(total - 1, i + 1))}}
+          onClick={() => {
+            setJustFinished(false);
+            setStepIdx((i) => Math.min(total - 1, i + 1));
+          }}
           disabled={stepIdx >= total - 1}
           style={{
             flex: 1,
@@ -432,19 +271,12 @@ export default function CookPage() {
             fontWeight: 800,
           }}
         >
-          Siguiente
+          Avanzar
         </button>
       </div>
 
       {stepIdx === total - 1 && (
-        <div
-          style={{
-            marginTop: 14,
-            border: "1px solid #111",
-            borderRadius: 16,
-            padding: 14,
-          }}
-        >
+        <div style={{ marginTop: 14, border: "1px solid #111", borderRadius: 16, padding: 14 }}>
           <div style={{ fontWeight: 900, marginBottom: 6 }}>Cierre rápido</div>
 
           <div style={{ marginBottom: 8 }}>
@@ -457,9 +289,7 @@ export default function CookPage() {
             <b>ARREGLO:</b> {recipe.fix}
           </div>
 
-          <div style={{ fontWeight: 800, marginTop: 8, marginBottom: 6 }}>
-            Emplatado
-          </div>
+          <div style={{ fontWeight: 800, marginTop: 8, marginBottom: 6 }}>Emplatado</div>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             {recipe.platingTips.slice(0, 3).map((t, idx) => (
               <li key={idx}>{t}</li>
