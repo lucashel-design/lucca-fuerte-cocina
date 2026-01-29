@@ -78,33 +78,80 @@ function fallbackMenuPitch(title: string) {
   return "Sabroso, fácil y listo en 20 minutos. Sin complicarte.";
 }
 
-function guessFamiliesFromTitle(title: string) {
-  const t = title.toLowerCase();
+function promptRequiresFamily(prompt: string, family: string) {
+  const p = (prompt || "").toLowerCase();
+
+  const map: Record<string, string[]> = {
+    pollo: ["pollo", "pechuga", "muslo", "contramuslo"],
+    "pescado en lata / pescado": ["atún", "atun", "sardina", "caballa", "salmón", "salmon", "pescado"],
+    "huevo/tortilla": ["huevo", "tortilla"],
+    pasta: ["pasta", "espagueti", "penne", "macarron", "macarrón", "fideos"],
+    arroz: ["arroz"],
+    ensalada: ["ensalada"],
+    postre: ["postre", "bizcocho", "yogur", "chocolate", "galleta", "tarta"],
+    airfryer: ["airfryer"],
+  };
+
+  const keys = map[family] || [];
+  return keys.some((k) => p.includes(k));
+}
+
+function guessFamilies(recipe: { title?: string; ingredients?: { item: string }[] }) {
+  const t = (recipe.title || "").toLowerCase();
+  const ing = (recipe.ingredients || []).map((x) => (x.item || "").toLowerCase()).join(" | ");
+
   const fam: string[] = [];
 
-  // Proteínas / bases comunes
-  if (t.includes("pollo")) fam.push("pollo");
-  if (t.includes("atún") || t.includes("atun") || t.includes("sardina") || t.includes("salmón") || t.includes("salmon"))
+  // Proteínas / base real por ingredientes (más fiable)
+  if (ing.includes("pollo") || ing.includes("pechuga") || ing.includes("muslo")) fam.push("pollo");
+  if (
+    ing.includes("atún") ||
+    ing.includes("atun") ||
+    ing.includes("sardina") ||
+    ing.includes("caballa") ||
+    ing.includes("salmón") ||
+    ing.includes("salmon") ||
+    ing.includes("pescado")
+  )
     fam.push("pescado en lata / pescado");
-  if (t.includes("huevo") || t.includes("tortilla")) fam.push("huevo/tortilla");
-  if (t.includes("pasta") || t.includes("espagueti") || t.includes("penne")) fam.push("pasta");
-  if (t.includes("arroz")) fam.push("arroz");
+  if (ing.includes("huevo") || t.includes("tortilla")) fam.push("huevo/tortilla");
+
+  // Bases
+  if (ing.includes("pasta") || t.includes("pasta") || t.includes("espagueti") || t.includes("penne")) fam.push("pasta");
+  if (ing.includes("arroz") || t.includes("arroz")) fam.push("arroz");
   if (t.includes("ensalada")) fam.push("ensalada");
-  if (t.includes("postre") || t.includes("bizcocho") || t.includes("yogur") || t.includes("chocolate"))
+
+  // Postre (por señales típicas)
+  if (
+    t.includes("postre") ||
+    t.includes("bizcocho") ||
+    ing.includes("yogur") ||
+    ing.includes("chocolate") ||
+    ing.includes("miel") ||
+    ing.includes("azúcar") ||
+    ing.includes("harina")
+  )
     fam.push("postre");
 
-  // Métodos / estilos repetitivos
+  // Método / familia repetitiva
   if (t.includes("airfryer")) fam.push("airfryer");
-  if (t.includes("cruj") || t.includes("empan") || t.includes("nugget") || t.includes("fingers"))
+  if (
+    t.includes("cruj") ||
+    t.includes("empan") ||
+    t.includes("nugget") ||
+    t.includes("fingers") ||
+    ing.includes("pan rallado") ||
+    ing.includes("panko")
+  )
     fam.push("crujiente/empanado");
 
   return fam;
 }
 
-function addToDiversity(title: string) {
+function addToDiversity(recipe: { title?: string; ingredients?: { item: string }[] }) {
   try {
     const prev = JSON.parse(sessionStorage.getItem(DIVERSITY_KEY) || "[]") as string[];
-    const next = Array.from(new Set([...prev, ...guessFamiliesFromTitle(title)])).slice(-12);
+    const next = Array.from(new Set([...prev, ...guessFamilies(recipe)])).slice(-14);
     sessionStorage.setItem(DIVERSITY_KEY, JSON.stringify(next));
   } catch {}
 }
@@ -128,7 +175,7 @@ export default function PickPage() {
       if (raw) {
         const r = JSON.parse(raw);
         setRecipe(r);
-        addToDiversity(String(r.title || ""));
+        addToDiversity(r);
 
         sessionStorage.setItem("lucca_last_title_v1", String(r.title || ""));
         sessionStorage.setItem(
@@ -154,11 +201,14 @@ export default function PickPage() {
         const prevTitle = recipe?.title ?? "";
         const base = prompt || "";
 
-        let banned = "";
-          try {
-            const list = JSON.parse(sessionStorage.getItem(DIVERSITY_KEY) || "[]") as string[];
-            if (list.length) banned = list.join(", ");
-          } catch {}
+        let bannedList: string[] = [];
+        try {
+          bannedList = JSON.parse(sessionStorage.getItem(DIVERSITY_KEY) || "[]") as string[];
+        } catch {}
+
+        const originalPrompt = prompt || "";
+        const filteredBanned = bannedList.filter((fam) => !promptRequiresFamily(originalPrompt, fam));
+        const banned = filteredBanned.join(", ");
 
         const retryPrompt =
         `${base}\n\n` +
@@ -169,9 +219,10 @@ export default function PickPage() {
         `3) Prohibido repetir la MISMA FAMILIA del plato anterior (ej: nuggets/fingers/empanado/crujiente = prohibido seguir empanando o haciendo fingers).\n` +
         `4) Si tu nueva idea rompe alguna restricción del original, descártala y genera otra antes de responder.\n` +
         `DIVERSIDAD (MUY IMPORTANTE):\n` +
-        `5) Evita repetir estas familias ya usadas: ${banned || "ninguna"}.\n` +
-        `6) Si la propuesta anterior fue de pollo, la siguiente NO puede llevar pollo.\n` +
-        `7) Prioriza cambiar la BASE: (pasta/arroz/huevo/legumbre/verdura/pescado en lata) y el método.\n` +
+        `DIVERSIDAD (MUY IMPORTANTE):\n` +
+        `- Evita repetir estas familias ya usadas (si NO están exigidas por el prompt): ${banned || "ninguna"}.\n` +
+        `- Si el prompt NO pide una proteína específica, NO elijas pollo por defecto.\n` +
+        `- Prioriza alternar BASES: (huevo/tortilla, legumbre, pasta, arroz, ensalada, pescado en lata) y alternar método.\n` +
         `Devuelve SOLO el JSON del esquema.\n`;
 
       const res = await fetch("/api/recipe", {
@@ -189,7 +240,7 @@ export default function PickPage() {
 
       sessionStorage.setItem(RECIPE_KEY, JSON.stringify(data.recipe));
       setRecipe(data.recipe);
-      addToDiversity(String(data.recipe?.title || ""));
+      addToDiversity(data.recipe);
     } catch (e: any) {
       setErr(e?.message || String(e));
     } finally {
