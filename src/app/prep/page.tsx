@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
+import CoachDock from "@/src/components/CoachDock";
 
 type Prefs = {
   cuisine?: string;
@@ -181,7 +182,7 @@ export default function PrepPage() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 24 }}>
+    <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 140 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
         <div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Preparación</div>
@@ -334,6 +335,7 @@ export default function PrepPage() {
           </div>
         </div>
       )}
+      <CoachDock screen="prep" recipe={recipe} />
     </main>
   );
 }
