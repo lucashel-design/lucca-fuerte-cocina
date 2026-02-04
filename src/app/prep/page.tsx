@@ -1,21 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-
-type Recipe = {
-  title: string;
-  timeMinutes: number;
-  servings: number;
-  ingredients: { item: string; amount: string }[];
-  substitutes: { for: string; instead: string }[];
-  steps: { text: string; timerSec: number }[];
-  trick: string;
-  errorCommon: string;
-  fix: string;
-  wow: string;
-  platingTips: string[];
-  zeyraOptional: null | { title: string; text: string; url: string };
-};
+import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 
 type Prefs = {
   cuisine?: string;
@@ -32,7 +18,7 @@ const PROMPT_KEY = "lucca_last_prompt_v1";
 const PREFS_KEY = "lucca_prefs_v1";
 
 export default function PrepPage() {
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [recipe, setRecipe] = useState<RecipeV1 | null>(null);
 
   // modal “faltan”
   const [missingOpen, setMissingOpen] = useState(false);
@@ -43,9 +29,26 @@ export default function PrepPage() {
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(RECIPE_KEY);
-      if (raw) setRecipe(JSON.parse(raw));
-    } catch {}
+      if (!raw) return;
+
+      const json = JSON.parse(raw);
+      const parsed = RecipeV1Schema.safeParse(json);
+
+      if (!parsed.success) {
+        console.warn("Receta inválida en sessionStorage", parsed.error.flatten());
+        sessionStorage.removeItem(RECIPE_KEY);
+        setRecipe(null);
+        return;
+      }
+
+      setRecipe(parsed.data);
+    } catch {
+      // si hay JSON roto, limpiamos para no dejar la app en un estado raro
+      sessionStorage.removeItem(RECIPE_KEY);
+      setRecipe(null);
+    }
   }, []);
+
 
   const ingredientCount = useMemo(() => recipe?.ingredients?.length || 0, [recipe]);
 
@@ -58,9 +61,26 @@ export default function PrepPage() {
     setMissingOpen(true);
   }
 
+  function compactRecipeForAdaptation(recipe: any) {
+    return {
+      title: recipe?.title ?? "",
+      menuPitch: recipe?.menuPitch ?? "",
+      timeMinutes: recipe?.timeMinutes ?? 20,
+      servings: recipe?.servings ?? 1,
+      // mandamos solo nombres (y pasos) para anclar sin inflar tokens
+      ingredients: (recipe?.ingredients ?? []).map((i: any) => i?.item ?? "").filter(Boolean),
+      steps: (recipe?.steps ?? []).map((s: any) => ({
+        text: s?.text ?? "",
+        timerSec: Number(s?.timerSec ?? 0),
+      })),
+    };
+  }
+
+
   async function regenerateWithoutMissing() {
     if (!recipe) return;
 
+    // 1) missing => string[] (esto es lo que la API necesita)
     const missingList = Object.entries(missingMap)
       .filter(([_, v]) => v)
       .map(([k]) => k);
@@ -74,40 +94,61 @@ export default function PrepPage() {
     setRegenErr(null);
 
     try {
+      // 2) Ancla: receta base compacta (barato en tokens)
+      const baseRecipe = compactRecipeForAdaptation(recipe);
+
+      // 3) Contexto opcional: prompt original (si lo tenías guardado)
       const basePrompt = sessionStorage.getItem(PROMPT_KEY) || "";
-      const missingLine = `FALTAN (NO USAR): ${missingList.join(", ")}`;
 
-      const regenPrompt =
-        `${basePrompt}\n` +
-        `${missingLine}\n\n` +
-        `Reglas:\n` +
-        `- Mantén TODAS las restricciones del pedido original (categoría, estilo, equipo/método, tiempo, etc.).\n` +
-        `- No uses los ingredientes marcados como FALTAN.\n` +
-        `- Propón sustitutos baratos (en substitutes) y reescribe ingredients + steps.\n` +
-        `- Si NO es posible sin esos ingredientes, devuelve una receta completamente distinta pero que cumpla las mismas restricciones.\n` +
-        `Devuelve SOLO el JSON del esquema.\n`;
-
+      // 4) Prefs (si existen)
       let prefs: Prefs | undefined = undefined;
       try {
         const rawPrefs = localStorage.getItem(PREFS_KEY);
         if (rawPrefs) prefs = JSON.parse(rawPrefs);
       } catch {}
 
-      const res = await fetch("/api/recipe", {
+      const userMessage =
+        (basePrompt.trim() ? basePrompt.trim() + "\n\n" : "") +
+        `MODO: adapt_missing
+      Receta base: ${baseRecipe.title}
+      Faltan (NO usar): ${missingList.join(", ")}
+
+      REGLAS:
+      - Mantén la identidad del plato (no lo conviertas en otra receta).
+      - Sustituye ingredientes faltantes por alternativas baratas y comunes en España.
+      - Reescribe ingredients + steps si hace falta.
+      - Devuelve SOLO JSON válido (schema RecipeV1).`;
+
+      const response = await fetch("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage: regenPrompt, prefs }),
+        body: JSON.stringify({
+          mode: "adapt_missing",
+          baseRecipe,
+          missing: missingList,  // ✅ array de strings
+          prefs,
+          basePrompt,
+        }),
       });
 
-      const data = await res.json();
+      const data = (await response.json()) as { recipe?: unknown; error?: string };
 
-      if (!res.ok) {
+      if (!response.ok) {
         setRegenErr(data?.error || "No se pudo adaptar la receta.");
         return;
       }
 
-      sessionStorage.setItem(RECIPE_KEY, JSON.stringify(data.recipe));
-      setRecipe(data.recipe);
+      // 6) Validación fuerte con Zod
+      const parsed = RecipeV1Schema.safeParse(data?.recipe);
+
+      if (!parsed.success) {
+        console.warn("La API devolvió una receta inválida", parsed.error.flatten(), data);
+        setRegenErr("La receta volvió con un formato raro. Dale otra vez o vuelve a Pick.");
+        return;
+      }
+
+      sessionStorage.setItem(RECIPE_KEY, JSON.stringify(parsed.data));
+      setRecipe(parsed.data);
       setMissingOpen(false);
     } catch (e: any) {
       setRegenErr(e?.message || String(e));

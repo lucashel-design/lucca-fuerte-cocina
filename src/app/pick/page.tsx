@@ -219,7 +219,6 @@ export default function PickPage() {
         `3) Prohibido repetir la MISMA FAMILIA del plato anterior (ej: nuggets/fingers/empanado/crujiente = prohibido seguir empanando o haciendo fingers).\n` +
         `4) Si tu nueva idea rompe alguna restricción del original, descártala y genera otra antes de responder.\n` +
         `DIVERSIDAD (MUY IMPORTANTE):\n` +
-        `DIVERSIDAD (MUY IMPORTANTE):\n` +
         `- Evita repetir estas familias ya usadas (si NO están exigidas por el prompt): ${banned || "ninguna"}.\n` +
         `- Si el prompt NO pide una proteína específica, NO elijas pollo por defecto.\n` +
         `- Prioriza alternar BASES: (huevo/tortilla, legumbre, pasta, arroz, ensalada, pescado en lata) y alternar método.\n` +
