@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import CoachDock from "@/src/components/CoachDock";
 
 type Recipe = {
   title: string;
@@ -152,7 +153,7 @@ export default function CookPage() {
   const showTimerUI = hasTimer && remaining > 0;
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 24 }}>
+    <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 170 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
         <div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Modo Cocina</div>
@@ -306,6 +307,7 @@ export default function CookPage() {
           </ul>
         </div>
       )}
+      <CoachDock recipe={recipe} stepIndex={stepIdx} />
     </main>
   );
 }

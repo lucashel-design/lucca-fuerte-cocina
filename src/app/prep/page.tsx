@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
-import CoachDock from "@/src/components/CoachDock";
 
 type Prefs = {
   cuisine?: string;
@@ -335,7 +334,6 @@ export default function PrepPage() {
           </div>
         </div>
       )}
-      <CoachDock screen="prep" recipe={recipe} />
     </main>
   );
 }

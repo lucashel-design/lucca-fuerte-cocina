@@ -2,40 +2,46 @@
 
 import { useMemo, useRef, useState } from "react";
 
-type CoachScreen = "prep" | "cook";
-
 type CoachDockProps = {
-  screen: CoachScreen;
-  recipe?: any;       // puedes pasar RecipeV1 completo; aquí lo compactamos
-  stepIndex?: number; // para cook (opcional)
+  recipe?: any;        // receta actual (la compactamos para ahorrar tokens)
+  stepIndex?: number;  // índice del paso actual en Cook
 };
 
 type Msg = { role: "user" | "assistant"; text: string };
 
-export default function CoachDock({ screen, recipe, stepIndex }: CoachDockProps) {
+export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
   const [open, setOpen] = useState(true);
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: "assistant", text: "Estoy aquí. Dime qué necesitas (sustitutos, dudas, ajustes…)." },
+    { role: "assistant", text: "Estoy aquí. Pregúntame mientras cocinas (dudas, arreglos, ajustes…)."},
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
   const listRef = useRef<HTMLDivElement | null>(null);
 
+  // Compactamos para controlar coste y no mandar un JSON enorme
   const compactRecipe = useMemo(() => {
     if (!recipe) return null;
 
     const ingredients =
-      Array.isArray(recipe.ingredients) ? recipe.ingredients.map((i: any) => i?.item ?? "").filter(Boolean) : [];
+      Array.isArray(recipe.ingredients)
+        ? recipe.ingredients.map((i: any) => i?.item ?? "").filter(Boolean)
+        : [];
 
     const steps =
       Array.isArray(recipe.steps)
-        ? recipe.steps.map((s: any) => String(s?.text ?? "")).filter(Boolean).slice(0, 12)
+        ? recipe.steps
+            .map((s: any) => String(s?.text ?? ""))
+            .filter(Boolean)
+            .slice(0, 12)
         : [];
 
     const currentStep =
-      typeof stepIndex === "number" && stepIndex >= 0 && Array.isArray(recipe.steps)
-        ? String(recipe.steps?.[stepIndex]?.text ?? "")
+      typeof stepIndex === "number" &&
+      stepIndex >= 0 &&
+      Array.isArray(recipe.steps) &&
+      recipe.steps[stepIndex]
+        ? String(recipe.steps[stepIndex]?.text ?? "")
         : "";
 
     return {
@@ -61,7 +67,7 @@ export default function CoachDock({ screen, recipe, stepIndex }: CoachDockProps)
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          screen,
+          screen: "cook",
           message: text,
           recipe: compactRecipe,
           stepIndex: typeof stepIndex === "number" ? stepIndex : undefined,
@@ -76,13 +82,13 @@ export default function CoachDock({ screen, recipe, stepIndex }: CoachDockProps)
           { role: "assistant", text: `⚠️ ${data?.error || "No he podido responder. Prueba otra vez."}` },
         ]);
       } else {
-        setMsgs((prev) => [...prev, { role: "assistant", text: String(data?.message || "") || "Vale." }]);
+        const answer = String(data?.message || "").trim();
+        setMsgs((prev) => [...prev, { role: "assistant", text: answer || "Vale." }]);
       }
     } catch (e: any) {
       setMsgs((prev) => [...prev, { role: "assistant", text: `⚠️ ${e?.message || String(e)}` }]);
     } finally {
       setLoading(false);
-      // scroll al final
       setTimeout(() => {
         if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
       }, 0);
@@ -90,16 +96,7 @@ export default function CoachDock({ screen, recipe, stepIndex }: CoachDockProps)
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 80,
-        padding: 12,
-      }}
-    >
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 80, padding: 12 }}>
       <div
         style={{
           maxWidth: 720,
@@ -121,8 +118,7 @@ export default function CoachDock({ screen, recipe, stepIndex }: CoachDockProps)
           }}
         >
           <div style={{ fontWeight: 950, fontSize: 13 }}>
-            Coach {screen === "prep" ? "Prep" : "Cook"}
-            {loading ? <span style={{ opacity: 0.6, fontWeight: 700 }}> · pensando…</span> : null}
+            Coach Cook{loading ? <span style={{ opacity: 0.6, fontWeight: 700 }}> · pensando…</span> : null}
           </div>
 
           <button
@@ -181,7 +177,7 @@ export default function CoachDock({ screen, recipe, stepIndex }: CoachDockProps)
                 onKeyDown={(e) => {
                   if (e.key === "Enter") send();
                 }}
-                placeholder='Ej: "No tengo pimentón, ¿qué pongo?"'
+                placeholder='Ej: "Se me está secando, ¿cómo lo arreglo?"'
                 style={{
                   flex: 1,
                   border: "1px solid #111",
