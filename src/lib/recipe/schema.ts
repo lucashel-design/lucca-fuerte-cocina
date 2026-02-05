@@ -24,7 +24,16 @@ const StepSchema = z.object({
 const ZeyraOptionalSchema = z.object({
   title: z.coerce.string().min(1),
   text: z.coerce.string().min(1),
-  url: z.coerce.string().url(),
+  url: z.coerce
+    .string()
+    .refine((s) => {
+      try {
+        new URL(s);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "url inválida"),
 });
 
 export const RecipeV1Schema = z

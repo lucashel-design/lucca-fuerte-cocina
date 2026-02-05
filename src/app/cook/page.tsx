@@ -2,21 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import CoachDock from "@/src/components/CoachDock";
-
-type Recipe = {
-  title: string;
-  timeMinutes: number;
-  servings: number;
-  ingredients: { item: string; amount: string }[];
-  substitutes: { for: string; instead: string }[];
-  steps: { text: string; timerSec: number }[];
-  trick: string;
-  errorCommon: string;
-  fix: string;
-  wow: string;
-  platingTips: string[];
-  zeyraOptional: null | { title: string; text: string; url: string };
-};
+import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 
 const KEY = "lucca_current_recipe_v1";
 
@@ -28,7 +14,7 @@ function formatMMSS(sec: number) {
 }
 
 export default function CookPage() {
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [recipe, setRecipe] = useState<RecipeV1 | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
 
   // Timer
@@ -81,8 +67,23 @@ export default function CookPage() {
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(KEY);
-      if (raw) setRecipe(JSON.parse(raw));
-    } catch {}
+      if (!raw) return;
+
+      const json = JSON.parse(raw);
+      const parsed = RecipeV1Schema.safeParse(json);
+
+      if (!parsed.success) {
+        console.warn("Receta inválida en sessionStorage (Cook)", parsed.error.flatten());
+        sessionStorage.removeItem(KEY);
+        setRecipe(null);
+        return;
+      }
+
+      setRecipe(parsed.data);
+    } catch {
+      sessionStorage.removeItem(KEY);
+      setRecipe(null);
+    }
   }, []);
 
   // Reset timer when step changes

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { RecipeV1Schema } from "@/src/lib/recipe/schema";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -215,10 +216,11 @@ ESQUEMA JSON (respétalo):
 
     // Intento 1: parsear
     let recipe: any;
+
+    // 1) Parse JSON (o intenta arreglar si no parsea)
     try {
-      recipe = normalizeWow(JSON.parse(text));
+      recipe = JSON.parse(text);
     } catch {
-      // Retry 1: “arregla el JSON” (solo 1 vez)
       const fix = await client.responses.create({
         model: "gpt-4o-mini",
         input: [
@@ -231,11 +233,55 @@ ESQUEMA JSON (respétalo):
         ],
         max_output_tokens: 500,
       });
+
       text = (fix.output_text || "").trim();
-      recipe = normalizeWow(JSON.parse(text));
+      recipe = JSON.parse(text);
     }
 
-    return Response.json({ recipe });
+    // 2) Normaliza WOW (tu lógica actual)
+    recipe = normalizeWow(recipe);
+
+    // 3) Valida contra el schema (contrato real)
+    let parsed = RecipeV1Schema.safeParse(recipe);
+
+    if (!parsed.success) {
+      // 1 intento de “repair” para encajar el schema (no solo JSON válido)
+      const repair = await client.responses.create({
+        model: "gpt-4o-mini",
+        input: [
+          {
+            role: "system",
+            content:
+              "Ajusta el JSON para que cumpla EXACTAMENTE el schema indicado. Devuelve SOLO JSON válido, sin texto extra.",
+          },
+          {
+            role: "user",
+            content:
+              `SCHEMA (descripción): RecipeV1.\n` +
+              `JSON ACTUAL:\n${JSON.stringify(recipe)}\n\n` +
+              `ERRORES:\n${JSON.stringify(parsed.error.flatten())}`,
+          },
+        ],
+        max_output_tokens: 600,
+      });
+
+      const repairedText = (repair.output_text || "").trim();
+      const repairedJson = JSON.parse(repairedText);
+      const normalized = normalizeWow(repairedJson);
+
+      parsed = RecipeV1Schema.safeParse(normalized);
+
+      if (!parsed.success) {
+        console.warn("La receta no cumple RecipeV1Schema", parsed.error.flatten());
+        return Response.json(
+          { error: "La receta generada no cumple el formato esperado. Prueba otra vez." },
+          { status: 500 }
+        );
+      }
+    }
+
+    return Response.json({ recipe: parsed.data });
+
   } catch (err: any) {
     return Response.json(
       { error: "Error en /api/recipe", details: err?.message ?? String(err) },
