@@ -1,7 +1,57 @@
 import OpenAI from "openai";
 import { RecipeV1Schema } from "@/src/lib/recipe/schema";
+import { createHash } from "crypto";
+export const runtime = "nodejs";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// --- Cache + Rate limit (MVP, memoria) ---
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 min
+const recipeCache = new Map<string, { ts: number; value: any }>();
+
+const RATE_WINDOW_MS = 5 * 60 * 1000; // 5 min
+const RATE_MAX = 30; // 30 requests / 5 min / IP
+const rateMap = new Map<string, { count: number; resetAt: number }>();
+
+function getClientIp(req: Request) {
+  const xf = req.headers.get("x-forwarded-for");
+  if (xf) return xf.split(",")[0].trim();
+  const xr = req.headers.get("x-real-ip");
+  if (xr) return xr.trim();
+  return "local";
+}
+
+function checkRateLimit(key: string) {
+  const now = Date.now();
+  const entry = rateMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    rateMap.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return { ok: true, retryAfterSec: 0 };
+  }
+  if (entry.count >= RATE_MAX) {
+    return { ok: false, retryAfterSec: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+  entry.count += 1;
+  return { ok: true, retryAfterSec: 0 };
+}
+
+function makeCacheKey(payload: unknown) {
+  const raw = JSON.stringify(payload);
+  return createHash("sha256").update(raw).digest("hex");
+}
+
+function cacheGet(key: string) {
+  const hit = recipeCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.ts > CACHE_TTL_MS) {
+    recipeCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function cacheSet(key: string, value: any) {
+  recipeCache.set(key, { ts: Date.now(), value });
+}
 
 type Prefs = {
   cuisine?: string;
@@ -93,6 +143,16 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
+    // Rate limit por IP
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(ip);
+    if (!rl.ok) {
+      return Response.json(
+        { error: `Demasiadas peticiones. Prueba en ${rl.retryAfterSec}s.` },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } }
+      );
+    }
+
     const mode = String(body?.mode ?? "").trim();
     const isAdaptMissing = mode === "adapt_missing";
 
@@ -124,6 +184,24 @@ export async function POST(req: Request) {
     if (!userMessage) {
       return Response.json({ error: "userMessage vacío" }, { status: 400 });
     }
+
+    // Cache: mismas entradas => misma salida (reduce coste)
+    const cacheKey = makeCacheKey({
+      mode,
+      userMessage,
+      prefs,
+      // incluimos estos campos porque afectan a la generación/adaptación
+      basePrompt: String(body?.basePrompt ?? "").trim(),
+      userNote: String(body?.userNote ?? "").trim(),
+      baseRecipe: body?.baseRecipe ?? null,
+      missing: body?.missing ?? null,
+    });
+
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      return Response.json({ recipe: cached, cached: true });
+    }
+
 
     const cuisine = String(prefs?.cuisine || "Española");
     const eq = prefs?.equipment || {};
@@ -279,6 +357,7 @@ ESQUEMA JSON (respétalo):
         );
       }
     }
+    cacheSet(cacheKey, parsed.data);
 
     return Response.json({ recipe: parsed.data });
 
