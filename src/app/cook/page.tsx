@@ -16,6 +16,7 @@ function formatMMSS(sec: number) {
 export default function CookPage() {
   const [recipe, setRecipe] = useState<RecipeV1 | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
+  const [finishTracked, setFinishTracked] = useState(false);
 
   // Timer
   const [running, setRunning] = useState(false);
@@ -25,6 +26,21 @@ export default function CookPage() {
 
   // Audio
   const audioCtxRef = useRef<AudioContext | null>(null);
+
+  function track(name: string, meta?: Record<string, any>) {
+    try {
+      fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          screen: "cook",
+          recipeTitle: recipe?.title || "",
+          meta: meta || undefined,
+        }),
+      }).catch(() => {});
+    } catch {}
+  }
 
   function unlockAudio() {
     try {
@@ -85,6 +101,41 @@ export default function CookPage() {
       setRecipe(null);
     }
   }, []);
+
+  useEffect(() => {
+    if (!recipe) return;
+    setFinishTracked(false);
+  }, [recipe?.title]);
+
+  useEffect(() => {
+    if (!recipe) return;
+    const total = recipe.steps.length;
+    if (total <= 0) return;
+
+    const isLast = stepIdx === total - 1;
+    if (isLast && !finishTracked) {
+      track("cook_finish", { total });
+      setFinishTracked(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepIdx, finishTracked, recipe?.title]);
+
+  useEffect(() => {
+    if (!recipe) return;
+    track("cook_open", { stepIdx: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!recipe]);
+
+  useEffect(() => {
+    if (!recipe || !currentStep) return;
+
+    track("cook_step_view", {
+      stepIdx,
+      total: recipe.steps.length,
+      timerSec: currentStep.timerSec || 0,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepIdx, recipe?.title]);
 
   // Reset timer when step changes
   useEffect(() => {
