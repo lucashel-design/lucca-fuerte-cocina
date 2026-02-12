@@ -165,6 +165,14 @@ export default function CookPage() {
           beep();
 
           setJustFinished(true);
+
+          // ✅ Analytics: terminó el timer
+          track("timer_finish", {
+            stepIdx,
+            total: recipe?.steps?.length || 0,
+            timerSec: currentStep?.timerSec || 0,
+          });
+
           return 0;
         }
         return r - 1;
@@ -249,6 +257,15 @@ export default function CookPage() {
               onClick={() => {
                 if (!running) unlockAudio();
                 setJustFinished(false);
+
+                // ✅ Analytics: start/pause
+                track(running ? "timer_pause" : "timer_start", {
+                  stepIdx,
+                  total: recipe.steps.length,
+                  remaining,
+                  timerSec: currentStep?.timerSec || 0,
+                });
+
                 setRunning((v) => !v);
               }}
               style={{
@@ -266,6 +283,13 @@ export default function CookPage() {
 
             <button
               onClick={() => {
+                // ✅ Analytics: reset
+                track("timer_reset", {
+                  stepIdx,
+                  total: recipe.steps.length,
+                  timerSec: currentStep?.timerSec || 0,
+                });
+
                 setRunning(false);
                 setRemaining(currentStep?.timerSec || 0);
                 setJustFinished(false);
