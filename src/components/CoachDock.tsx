@@ -3,8 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 
 type CoachDockProps = {
-  recipe?: any;        // receta actual (la compactamos para ahorrar tokens)
-  stepIndex?: number;  // índice del paso actual en Cook
+  recipe?: any; // receta actual (la compactamos para ahorrar tokens)
+  stepIndex?: number; // índice del paso actual en Cook
 };
 
 type Msg = { role: "user" | "assistant"; text: string };
@@ -12,7 +12,7 @@ type Msg = { role: "user" | "assistant"; text: string };
 export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
   const [open, setOpen] = useState(true);
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: "assistant", text: "Estoy aquí. Pregúntame mientras cocinas (dudas, arreglos, ajustes…)."},
+    { role: "assistant", text: "Estoy aquí. Pregúntame mientras cocinas (dudas, arreglos, ajustes…)."} ,
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,18 +23,16 @@ export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
   const compactRecipe = useMemo(() => {
     if (!recipe) return null;
 
-    const ingredients =
-      Array.isArray(recipe.ingredients)
-        ? recipe.ingredients.map((i: any) => i?.item ?? "").filter(Boolean)
-        : [];
+    const ingredients = Array.isArray(recipe.ingredients)
+      ? recipe.ingredients.map((i: any) => i?.item ?? "").filter(Boolean)
+      : [];
 
-    const steps =
-      Array.isArray(recipe.steps)
-        ? recipe.steps
-            .map((s: any) => String(s?.text ?? ""))
-            .filter(Boolean)
-            .slice(0, 12)
-        : [];
+    const steps = Array.isArray(recipe.steps)
+      ? recipe.steps
+          .map((s: any) => String(s?.text ?? ""))
+          .filter(Boolean)
+          .slice(0, 12)
+      : [];
 
     const currentStep =
       typeof stepIndex === "number" &&
@@ -54,6 +52,21 @@ export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
     };
   }, [recipe, stepIndex]);
 
+  function track(name: string, meta?: Record<string, any>) {
+    try {
+      fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          screen: "cook",
+          recipeTitle: String(recipe?.title ?? ""),
+          meta: meta || undefined,
+        }),
+      }).catch(() => {});
+    } catch {}
+  }
+
   async function send() {
     const text = input.trim();
     if (!text || loading) return;
@@ -61,6 +74,12 @@ export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
     setInput("");
     setMsgs((prev) => [...prev, { role: "user", text }]);
     setLoading(true);
+
+    // ✅ Evento: usuario envía mensaje al coach
+    track("coach_send", {
+      stepIdx: typeof stepIndex === "number" ? stepIndex : null,
+      textLen: text.length,
+    });
 
     try {
       const res = await fetch("/api/coach", {
@@ -77,16 +96,36 @@ export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
       const data = (await res.json()) as { message?: string; error?: string };
 
       if (!res.ok) {
-        setMsgs((prev) => [
-          ...prev,
-          { role: "assistant", text: `⚠️ ${data?.error || "No he podido responder. Prueba otra vez."}` },
-        ]);
+        const errMsg = data?.error || "No he podido responder. Prueba otra vez.";
+        setMsgs((prev) => [...prev, { role: "assistant", text: `⚠️ ${errMsg}` }]);
+
+        // ✅ Evento: respuesta error
+        track("coach_response", {
+          ok: false,
+          stepIdx: typeof stepIndex === "number" ? stepIndex : null,
+          error: errMsg,
+        });
       } else {
         const answer = String(data?.message || "").trim();
         setMsgs((prev) => [...prev, { role: "assistant", text: answer || "Vale." }]);
+
+        // ✅ Evento: respuesta ok
+        track("coach_response", {
+          ok: true,
+          stepIdx: typeof stepIndex === "number" ? stepIndex : null,
+          answerLen: answer.length,
+        });
       }
     } catch (e: any) {
-      setMsgs((prev) => [...prev, { role: "assistant", text: `⚠️ ${e?.message || String(e)}` }]);
+      const err = e?.message || String(e);
+      setMsgs((prev) => [...prev, { role: "assistant", text: `⚠️ ${err}` }]);
+
+      // ✅ Evento: excepción/red
+      track("coach_response", {
+        ok: false,
+        stepIdx: typeof stepIndex === "number" ? stepIndex : null,
+        error: err,
+      });
     } finally {
       setLoading(false);
       setTimeout(() => {
