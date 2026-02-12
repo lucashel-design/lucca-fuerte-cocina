@@ -23,3 +23,10 @@ pnpm-debug.log*
 # IDE
 .vscode/
 .idea/
+
+# --- Prisma experiment (local only) ---
+prisma/
+prisma.config.ts
+dev.db
+src/lib/prisma.ts
+
