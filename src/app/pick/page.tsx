@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Recipe = {
   title: string;
@@ -17,7 +17,6 @@ type Recipe = {
   platingTips: string[];
   zeyraOptional: null | { title: string; text: string; url: string };
 };
-
 
 type Prefs = {
   cuisine: string;
@@ -162,12 +161,44 @@ export default function PickPage() {
   const [err, setErr] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
 
-    useEffect(() => {
+  // ✅ Tiempo desde que se abre Pick (para “tiempo hasta elegir”)
+  const pickOpenTsRef = useRef<number | null>(null);
+  const openTrackedRef = useRef(false);
+
+  function track(name: string, meta?: Record<string, any>) {
+    const payload = {
+      name,
+      screen: "pick",
+      recipeTitle: String(recipe?.title ?? ""),
+      meta: meta || undefined,
+    };
+
     try {
-        const raw = localStorage.getItem(PREFS_KEY);
-        if (raw) setPrefs(JSON.parse(raw));
+      // ✅ En navegación rápida (Me gusta → /prep), beacon es más fiable que fetch
+      if (typeof navigator !== "undefined" && "sendBeacon" in navigator) {
+        const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+        (navigator as any).sendBeacon("/api/track", blob);
+        return;
+      }
     } catch {}
-    }, []);
+
+    try {
+      fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        // @ts-ignore
+        keepalive: true,
+      }).catch(() => {});
+    } catch {}
+  }
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PREFS_KEY);
+      if (raw) setPrefs(JSON.parse(raw));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     try {
@@ -186,6 +217,17 @@ export default function PickPage() {
     } catch {}
   }, []);
 
+  // ✅ pick_open (una sola vez cuando ya hay receta en Pick)
+  useEffect(() => {
+    if (!recipe) return;
+    if (openTrackedRef.current) return;
+
+    openTrackedRef.current = true;
+    pickOpenTsRef.current = Date.now();
+
+    track("pick_open", { title: recipe.title });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!recipe]);
 
   async function dislikeAndGetAnother() {
     setErr(null);
@@ -196,21 +238,28 @@ export default function PickPage() {
       return;
     }
 
+    // ✅ Evento: dislike
+    const elapsedMs = pickOpenTsRef.current ? Date.now() - pickOpenTsRef.current : null;
+    track("pick_dislike", {
+      elapsedMs,
+      fromTitle: recipe?.title || "",
+    });
+
     setLoading(true);
     try {
-        const prevTitle = recipe?.title ?? "";
-        const base = prompt || "";
+      const prevTitle = recipe?.title ?? "";
+      const base = prompt || "";
 
-        let bannedList: string[] = [];
-        try {
-          bannedList = JSON.parse(sessionStorage.getItem(DIVERSITY_KEY) || "[]") as string[];
-        } catch {}
+      let bannedList: string[] = [];
+      try {
+        bannedList = JSON.parse(sessionStorage.getItem(DIVERSITY_KEY) || "[]") as string[];
+      } catch {}
 
-        const originalPrompt = prompt || "";
-        const filteredBanned = bannedList.filter((fam) => !promptRequiresFamily(originalPrompt, fam));
-        const banned = filteredBanned.join(", ");
+      const originalPrompt = prompt || "";
+      const filteredBanned = bannedList.filter((fam) => !promptRequiresFamily(originalPrompt, fam));
+      const banned = filteredBanned.join(", ");
 
-        const retryPrompt =
+      const retryPrompt =
         `${base}\n\n` +
         `PROPUESTA ANTERIOR (NO REPETIR): "${prevTitle}".\n` +
         `REGLAS DE REGENERACIÓN (MUY IMPORTANTE):\n` +
@@ -278,6 +327,7 @@ export default function PickPage() {
           <div style={{ fontSize: 14, fontWeight: 950, margin: "6px 0 2px" }}>Elige tu plato</div>
         </div>
 
+        {/* ✅ NO CAMBIAR: Volver a Home */}
         <a href="/" style={{ border: "1px solid #111", padding: "8px 10px", borderRadius: 12 }}>
           Volver
         </a>
@@ -337,6 +387,14 @@ export default function PickPage() {
 
         <button
           onClick={() => {
+            const elapsedMs = pickOpenTsRef.current ? Date.now() - pickOpenTsRef.current : null;
+
+            // ✅ Evento: like (incluye tiempo hasta elegir)
+            track("pick_like", {
+              elapsedMs,
+              title: recipe.title,
+            });
+
             window.location.href = "/prep";
           }}
           style={{
