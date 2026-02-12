@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 
 type Prefs = {
@@ -25,6 +25,35 @@ export default function PrepPage() {
   const [missingMap, setMissingMap] = useState<Record<string, boolean>>({});
   const [regenLoading, setRegenLoading] = useState(false);
   const [regenErr, setRegenErr] = useState<string | null>(null);
+  const openTrackedRef = useRef(false);
+
+  function track(name: string, meta?: Record<string, any>) {
+    const payload = {
+      name,
+      screen: "prep",
+      recipeTitle: String(recipe?.title ?? ""),
+      meta: meta || undefined,
+    };
+
+    try {
+      if (typeof navigator !== "undefined" && "sendBeacon" in navigator) {
+        const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+        (navigator as any).sendBeacon("/api/track", blob);
+        return;
+      }
+    } catch {}
+
+    try {
+      fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        // @ts-ignore
+        keepalive: true,
+      }).catch(() => {});
+    } catch {}
+  }
+
 
   useEffect(() => {
     try {
@@ -49,6 +78,18 @@ export default function PrepPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!recipe) return;
+    if (openTrackedRef.current) return;
+
+    openTrackedRef.current = true;
+    track("prep_open", {
+      ingredientCount: (recipe.ingredients || []).length,
+      servings: recipe.servings,
+      timeMinutes: recipe.timeMinutes,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!recipe]);
 
   const ingredientCount = useMemo(() => recipe?.ingredients?.length || 0, [recipe]);
 
@@ -58,6 +99,9 @@ export default function PrepPage() {
     for (const ing of recipe.ingredients || []) initial[ing.item] = false;
     setMissingMap(initial);
     setRegenErr(null);
+
+    track("prep_missing_open", { ingredientCount: (recipe.ingredients || []).length });
+
     setMissingOpen(true);
   }
 
@@ -90,6 +134,10 @@ export default function PrepPage() {
       return;
     }
 
+    track("prep_adapt_missing_submit", {
+      missingCount: missingList.length,
+    });
+
     setRegenLoading(true);
     setRegenErr(null);
 
@@ -107,25 +155,13 @@ export default function PrepPage() {
         if (rawPrefs) prefs = JSON.parse(rawPrefs);
       } catch {}
 
-      const userMessage =
-        (basePrompt.trim() ? basePrompt.trim() + "\n\n" : "") +
-        `MODO: adapt_missing
-      Receta base: ${baseRecipe.title}
-      Faltan (NO usar): ${missingList.join(", ")}
-
-      REGLAS:
-      - Mantén la identidad del plato (no lo conviertas en otra receta).
-      - Sustituye ingredientes faltantes por alternativas baratas y comunes en España.
-      - Reescribe ingredients + steps si hace falta.
-      - Devuelve SOLO JSON válido (schema RecipeV1).`;
-
       const response = await fetch("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "adapt_missing",
           baseRecipe,
-          missing: missingList,  // ✅ array de strings
+          missing: missingList, // ✅ array de strings
           prefs,
           basePrompt,
         }),
@@ -134,24 +170,47 @@ export default function PrepPage() {
       const data = (await response.json()) as { recipe?: unknown; error?: string };
 
       if (!response.ok) {
-        setRegenErr(data?.error || "No se pudo adaptar la receta.");
+        const errMsg = data?.error || "No se pudo adaptar la receta.";
+        setRegenErr(errMsg);
+
+        track("prep_adapt_missing_error", {
+          missingCount: missingList.length,
+          error: errMsg,
+        });
+
         return;
       }
 
-      // 6) Validación fuerte con Zod
+      // 5) Validación fuerte con Zod
       const parsed = RecipeV1Schema.safeParse(data?.recipe);
 
       if (!parsed.success) {
         console.warn("La API devolvió una receta inválida", parsed.error.flatten(), data);
         setRegenErr("La receta volvió con un formato raro. Dale otra vez o vuelve a Pick.");
+
+        track("prep_adapt_missing_error", {
+          missingCount: missingList.length,
+          error: "schema_invalid",
+        });
+
         return;
       }
 
       sessionStorage.setItem(RECIPE_KEY, JSON.stringify(parsed.data));
       setRecipe(parsed.data);
       setMissingOpen(false);
+
+      track("prep_adapt_missing_success", {
+        missingCount: missingList.length,
+      });
     } catch (e: any) {
-      setRegenErr(e?.message || String(e));
+      const msg = e?.message || String(e);
+      setRegenErr(msg);
+
+      track("prep_adapt_missing_error", {
+        missingCount: missingList.length,
+        error: msg,
+      });
     } finally {
       setRegenLoading(false);
     }
@@ -225,7 +284,11 @@ export default function PrepPage() {
           </button>
 
           <button
-            onClick={() => (window.location.href = "/cook")}
+            onClick={() => {
+              track("prep_start_cook", { stepIdx: 0 });
+              window.location.href = "/cook";
+            }}
+
             style={{
               flex: 1,
               border: "1px solid #111",
