@@ -13,6 +13,130 @@ function formatMMSS(sec: number) {
   return `${mm}:${ss}`;
 }
 
+/** ===== Stories helpers (1080x1920) ===== */
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  maxLines: number
+) {
+  const words = String(text || "")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  let line = "";
+  let lines = 0;
+
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line ? `${line} ${words[n]}` : words[n];
+    const w = ctx.measureText(testLine).width;
+
+    if (w > maxWidth && line) {
+      ctx.fillText(line, x, y);
+      y += lineHeight;
+      lines++;
+      line = words[n];
+
+      if (lines >= maxLines - 1) break;
+    } else {
+      line = testLine;
+    }
+  }
+
+  if (line && lines < maxLines) {
+    // si nos pasamos, recorta con "…"
+    let finalLine = line;
+    while (ctx.measureText(finalLine).width > maxWidth && finalLine.length > 3) {
+      finalLine = finalLine.slice(0, -2).trim() + "…";
+    }
+    ctx.fillText(finalLine, x, y);
+  }
+}
+
+function downloadStoryCard(recipe: RecipeV1) {
+  const W = 1080;
+  const H = 1920;
+
+  const title = String(recipe?.title ?? "").trim() || "Mi receta";
+  const pitch = String(recipe?.menuPitch ?? "").trim();
+  const trick = String(recipe?.trick ?? "").trim();
+  const wow = String(recipe?.wow ?? "").trim();
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas no soportado");
+
+  // Fondo (elegante)
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, "#0b0b0b");
+  g.addColorStop(1, "#232323");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // “Plato” decorativo
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(W * 0.5, H * 0.42, 340, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Header
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 34px system-ui, -apple-system, Segoe UI, Roboto";
+  ctx.fillText("Lucca.Fuerte Cocina", 70, 110);
+
+  // Título
+  ctx.font = "900 72px system-ui, -apple-system, Segoe UI, Roboto";
+  wrapText(ctx, title, 70, 230, W - 140, 86, 3);
+
+  // Pitch
+  if (pitch) {
+    ctx.globalAlpha = 0.9;
+    ctx.font = "600 36px system-ui, -apple-system, Segoe UI, Roboto";
+    wrapText(ctx, pitch, 70, 520, W - 140, 48, 4);
+    ctx.globalAlpha = 1;
+  }
+
+  // TRUCO
+  ctx.globalAlpha = 0.95;
+  ctx.font = "900 34px system-ui, -apple-system, Segoe UI, Roboto";
+  ctx.fillText("TRUCO", 70, 980);
+  ctx.font = "600 34px system-ui, -apple-system, Segoe UI, Roboto";
+  wrapText(ctx, trick || "—", 70, 1040, W - 140, 46, 3);
+
+  // WOW
+  ctx.font = "900 34px system-ui, -apple-system, Segoe UI, Roboto";
+  ctx.fillText("WOW (opcional)", 70, 1220);
+  ctx.font = "600 34px system-ui, -apple-system, Segoe UI, Roboto";
+  wrapText(ctx, wow || "—", 70, 1280, W - 140, 46, 3);
+
+  // Marca de agua
+  ctx.globalAlpha = 0.75;
+  ctx.font = "800 30px system-ui, -apple-system, Segoe UI, Roboto";
+  ctx.fillText("© Lucca.Fuerte Cocina", 70, H - 90);
+  ctx.font = "600 26px system-ui, -apple-system, Segoe UI, Roboto";
+  ctx.fillText("Comparte en Stories", 70, H - 50);
+  ctx.globalAlpha = 1;
+
+  const dataUrl = canvas.toDataURL("image/png");
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = `lucca-story-${title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 40)}.png`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 export default function CookPage() {
   const [recipe, setRecipe] = useState<RecipeV1 | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
@@ -109,12 +233,12 @@ export default function CookPage() {
 
   useEffect(() => {
     if (!recipe) return;
-    const total = recipe.steps.length;
-    if (total <= 0) return;
+    const totalSteps = recipe.steps.length;
+    if (totalSteps <= 0) return;
 
-    const isLast = stepIdx === total - 1;
+    const isLast = stepIdx === totalSteps - 1;
     if (isLast && !finishTracked) {
-      track("cook_finish", { total });
+      track("cook_finish", { total: totalSteps });
       setFinishTracked(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -183,6 +307,7 @@ export default function CookPage() {
       if (tickRef.current) window.clearInterval(tickRef.current);
       tickRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
 
   if (!recipe) {
@@ -245,11 +370,7 @@ export default function CookPage() {
           {currentStep?.text}
         </div>
 
-        {justFinished && (
-          <div style={{ marginTop: 10, fontWeight: 900 }}>
-            ⏰ Tiempo. Dale a “Avanzar”.
-          </div>
-        )}
+        {justFinished && <div style={{ marginTop: 10, fontWeight: 900 }}>⏰ Tiempo. Dale a “Avanzar”.</div>}
 
         {showTimerUI && (
           <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
@@ -325,7 +446,6 @@ export default function CookPage() {
             setStepIdx((i) => Math.max(0, i - 1));
           }}
           disabled={!recipe || total <= 0}
-
           style={{
             flex: 1,
             border: "1px solid #111",
@@ -381,8 +501,35 @@ export default function CookPage() {
               <li key={idx}>{t}</li>
             ))}
           </ul>
+
+          {/* ✅ Nuevo: Story 1080x1920 */}
+          <button
+            onClick={() => {
+              try {
+                downloadStoryCard(recipe);
+                track("story_download", { where: "cook_final", stepIdx, total });
+              } catch (e: any) {
+                console.warn("No se pudo generar la story", e);
+                track("story_download_error", { msg: e?.message || String(e) });
+              }
+            }}
+            style={{
+              marginTop: 12,
+              width: "100%",
+              border: "1px solid #111",
+              background: "#111",
+              color: "#fff",
+              padding: "12px 12px",
+              borderRadius: 14,
+              cursor: "pointer",
+              fontWeight: 900,
+            }}
+          >
+            Descargar Story (1080×1920)
+          </button>
         </div>
       )}
+
       <CoachDock recipe={recipe} stepIndex={stepIdx} />
     </main>
   );

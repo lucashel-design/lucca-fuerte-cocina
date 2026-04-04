@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Button from "@/src/components/ui/Button"
 
 type Recipe = {
   title: string;
@@ -368,24 +369,20 @@ export default function PickPage() {
       </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-        <button
+        <Button
+          variant="secondary"
           onClick={dislikeAndGetAnother}
-          disabled={loading}
+          loading={loading}
           style={{
             flex: 1,
-            border: "1px solid #111",
-            background: "#fff",
-            color: "#111",
             padding: "14px 12px",
-            borderRadius: 14,
-            cursor: loading ? "not-allowed" : "pointer",
-            fontWeight: 950,
           }}
         >
-          {loading ? "Buscando otra…" : "No me gusta"}
-        </button>
+          No me gusta
+        </Button>
 
-        <button
+        <Button
+          variant="primary"
           onClick={() => {
             const elapsedMs = pickOpenTsRef.current ? Date.now() - pickOpenTsRef.current : null;
 
@@ -399,17 +396,11 @@ export default function PickPage() {
           }}
           style={{
             flex: 1,
-            border: "1px solid #111",
-            background: "#111",
-            color: "#fff",
             padding: "14px 12px",
-            borderRadius: 14,
-            cursor: "pointer",
-            fontWeight: 950,
           }}
         >
           Me gusta
-        </button>
+        </Button>
       </div>
 
       <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
