@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import State from "@/src/components/ui/State";
+import Card from "@/src/components/ui/Card";
+import Button from "@/src/components/ui/Button";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 
 type Prefs = {
@@ -192,7 +194,6 @@ export default function PrepPage() {
     }
   }
 
-  // ✅ Consistencia visual: State cuando no hay receta
   if (!recipe) {
     return (
       <State
@@ -210,73 +211,74 @@ export default function PrepPage() {
     <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 140 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Preparación</div>
+          <div style={{ fontSize: 12, color: "var(--muted-2)" }}>Preparación</div>
           <h1 style={{ fontSize: 22, fontWeight: 950, margin: "6px 0 2px" }}>{recipe.title}</h1>
-          <div style={{ fontSize: 13, opacity: 0.8 }}>
+          <div style={{ fontSize: 13, color: "var(--muted)" }}>
             {recipe.timeMinutes} min · {recipe.servings} raciones · {ingredientCount} ingredientes
           </div>
         </div>
-        <a href="/pick" style={{ border: "1px solid #111", padding: "8px 10px", borderRadius: 12 }}>
+
+        <a
+          href="/pick"
+          style={{
+            border: "var(--border)",
+            padding: "8px 10px",
+            borderRadius: "var(--r-md)",
+            background: "var(--card)",
+            color: "var(--fg)",
+            textDecoration: "none",
+            fontWeight: 900,
+          }}
+        >
           Salir
         </a>
       </div>
 
-      <div style={{ marginTop: 14, border: "1px solid #111", borderRadius: 16, padding: 16 }}>
-        <div style={{ fontWeight: 900, marginBottom: 8 }}>Ingredientes</div>
+      {/* ✅ Card consistente */}
+      <Card style={{ marginTop: 14 }}>
+        <div style={{ fontWeight: 950, marginBottom: 8 }}>Ingredientes</div>
 
         <ul style={{ margin: 0, paddingLeft: 18 }}>
           {(recipe.ingredients || []).map((ing, idx) => (
             <li key={idx}>
               <b>{ing.item}</b>
-              {ing.amount ? <span style={{ opacity: 0.75 }}>{` — ${ing.amount}`}</span> : null}
+              {ing.amount ? <span style={{ color: "var(--muted)" }}>{` — ${ing.amount}`}</span> : null}
             </li>
           ))}
         </ul>
 
         <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
-          <button
-            onClick={openMissingModal}
-            style={{
-              flex: 1,
-              border: "1px solid #111",
-              background: "#fff",
-              color: "#111",
-              padding: "12px 12px",
-              borderRadius: 14,
-              cursor: "pointer",
-              fontWeight: 900,
-            }}
-          >
+          <Button variant="secondary" onClick={openMissingModal} style={{ flex: 1 }}>
             Me faltan ingredientes
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant="primary"
             onClick={() => {
               track("prep_start_cook", { stepIdx: 0 });
               window.location.href = "/cook";
             }}
-            style={{
-              flex: 1,
-              border: "1px solid #111",
-              background: "#111",
-              color: "#fff",
-              padding: "12px 12px",
-              borderRadius: 14,
-              cursor: "pointer",
-              fontWeight: 900,
-            }}
+            style={{ flex: 1 }}
           >
             Empezar a cocinar
-          </button>
+          </Button>
         </div>
 
         {recipe.wow && (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 14, border: "1px solid #111" }}>
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: "var(--r-lg)",
+              border: "var(--border)",
+              background: "var(--card)",
+            }}
+          >
             <div style={{ fontWeight: 950, marginBottom: 4 }}>WOW (opcional para impresionar)</div>
-            <div style={{ lineHeight: 1.25 }}>{recipe.wow}</div>
+            <div style={{ lineHeight: 1.25, color: "var(--muted)" }}>{recipe.wow}</div>
           </div>
         )}
-      </div>
+      </Card>
 
       {missingOpen && (
         <div
@@ -297,13 +299,15 @@ export default function PrepPage() {
             style={{
               width: "100%",
               maxWidth: 520,
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #111",
+              background: "var(--card)",
+              color: "var(--fg)",
+              borderRadius: "var(--r-xl)",
+              border: "var(--border)",
               padding: 16,
+              boxShadow: "var(--shadow)",
             }}
           >
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>Marca lo que te falta</div>
+            <div style={{ fontWeight: 950, marginBottom: 10 }}>Marca lo que te falta</div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflow: "auto" }}>
               {(recipe.ingredients || []).map((ing, idx) => (
@@ -313,52 +317,36 @@ export default function PrepPage() {
                     checked={!!missingMap[ing.item]}
                     onChange={() => setMissingMap((prev) => ({ ...prev, [ing.item]: !prev[ing.item] }))}
                   />
-                  <span style={{ fontWeight: 700 }}>
+                  <span style={{ fontWeight: 800 }}>
                     {ing.item}{" "}
-                    <span style={{ fontWeight: 400, opacity: 0.75 }}>{ing.amount ? `— ${ing.amount}` : ""}</span>
+                    <span style={{ fontWeight: 400, color: "var(--muted)" }}>
+                      {ing.amount ? `— ${ing.amount}` : ""}
+                    </span>
                   </span>
                 </label>
               ))}
             </div>
 
             {regenErr && (
-              <div style={{ marginTop: 10, border: "1px solid #c00", padding: 10, borderRadius: 12 }}>
+              <div style={{ marginTop: 10, border: "1px solid #c00", padding: 10, borderRadius: "var(--r-lg)" }}>
                 ⚠️ {regenErr}
               </div>
             )}
 
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <button
-                onClick={() => setMissingOpen(false)}
-                style={{
-                  flex: 1,
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
+              <Button variant="secondary" onClick={() => setMissingOpen(false)} style={{ flex: 1 }}>
                 Cancelar
-              </button>
+              </Button>
 
-              <button
+              <Button
+                variant="primary"
                 onClick={regenerateWithoutMissing}
                 disabled={regenLoading}
-                style={{
-                  flex: 1,
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: regenLoading ? "#999" : "#111",
-                  color: "#fff",
-                  cursor: regenLoading ? "not-allowed" : "pointer",
-                  fontWeight: 900,
-                }}
+                loading={regenLoading}
+                style={{ flex: 1 }}
               >
-                {regenLoading ? "Adaptando…" : "Adaptar receta"}
-              </button>
+                Adaptar receta
+              </Button>
             </div>
           </div>
         </div>
