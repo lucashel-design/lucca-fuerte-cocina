@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Button from "@/src/components/ui/Button"
+import Button from "@/src/components/ui/Button";
+import Card from "@/src/components/ui/Card";
 
 type Recipe = {
   title: string;
@@ -102,7 +103,6 @@ function guessFamilies(recipe: { title?: string; ingredients?: { item: string }[
 
   const fam: string[] = [];
 
-  // Proteínas / base real por ingredientes (más fiable)
   if (ing.includes("pollo") || ing.includes("pechuga") || ing.includes("muslo")) fam.push("pollo");
   if (
     ing.includes("atún") ||
@@ -116,12 +116,10 @@ function guessFamilies(recipe: { title?: string; ingredients?: { item: string }[
     fam.push("pescado en lata / pescado");
   if (ing.includes("huevo") || t.includes("tortilla")) fam.push("huevo/tortilla");
 
-  // Bases
   if (ing.includes("pasta") || t.includes("pasta") || t.includes("espagueti") || t.includes("penne")) fam.push("pasta");
   if (ing.includes("arroz") || t.includes("arroz")) fam.push("arroz");
   if (t.includes("ensalada")) fam.push("ensalada");
 
-  // Postre (por señales típicas)
   if (
     t.includes("postre") ||
     t.includes("bizcocho") ||
@@ -133,7 +131,6 @@ function guessFamilies(recipe: { title?: string; ingredients?: { item: string }[
   )
     fam.push("postre");
 
-  // Método / familia repetitiva
   if (t.includes("airfryer")) fam.push("airfryer");
   if (
     t.includes("cruj") ||
@@ -162,7 +159,7 @@ export default function PickPage() {
   const [err, setErr] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
 
-  // ✅ Tiempo desde que se abre Pick (para “tiempo hasta elegir”)
+  // Tiempo desde que se abre Pick (para “tiempo hasta elegir”)
   const pickOpenTsRef = useRef<number | null>(null);
   const openTrackedRef = useRef(false);
 
@@ -175,7 +172,6 @@ export default function PickPage() {
     };
 
     try {
-      // ✅ En navegación rápida (Me gusta → /prep), beacon es más fiable que fetch
       if (typeof navigator !== "undefined" && "sendBeacon" in navigator) {
         const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
         (navigator as any).sendBeacon("/api/track", blob);
@@ -218,7 +214,6 @@ export default function PickPage() {
     } catch {}
   }, []);
 
-  // ✅ pick_open (una sola vez cuando ya hay receta en Pick)
   useEffect(() => {
     if (!recipe) return;
     if (openTrackedRef.current) return;
@@ -239,7 +234,6 @@ export default function PickPage() {
       return;
     }
 
-    // ✅ Evento: dislike
     const elapsedMs = pickOpenTsRef.current ? Date.now() - pickOpenTsRef.current : null;
     track("pick_dislike", {
       elapsedMs,
@@ -334,7 +328,8 @@ export default function PickPage() {
         </a>
       </div>
 
-      <div style={{ marginTop: 14, border: "1px solid #111", borderRadius: 16, padding: 16 }}>
+      {/* ✅ Card consistente */}
+      <Card style={{ marginTop: 14 }}>
         <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Sugerencias del Chef:</div>
 
         <img
@@ -345,7 +340,7 @@ export default function PickPage() {
             height: 220,
             borderRadius: 14,
             objectFit: "cover",
-            border: "1px solid #111",
+            border: "var(--border)",
           }}
         />
 
@@ -366,7 +361,7 @@ export default function PickPage() {
             ⚠️ {err}
           </div>
         )}
-      </div>
+      </Card>
 
       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
         <Button
@@ -386,7 +381,6 @@ export default function PickPage() {
           onClick={() => {
             const elapsedMs = pickOpenTsRef.current ? Date.now() - pickOpenTsRef.current : null;
 
-            // ✅ Evento: like (incluye tiempo hasta elegir)
             track("pick_like", {
               elapsedMs,
               title: recipe.title,
