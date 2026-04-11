@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import CoachDock from "@/src/components/CoachDock";
+import State from "@/src/components/ui/State";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 
 const KEY = "lucca_current_recipe_v1";
@@ -287,7 +288,6 @@ export default function CookPage() {
           } catch {}
 
           beep();
-
           setJustFinished(true);
 
           // ✅ Analytics: terminó el timer
@@ -310,26 +310,17 @@ export default function CookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
 
+  // ✅ Consistencia visual: State cuando no hay receta
   if (!recipe) {
     return (
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: 16 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Modo Cocina</h1>
-        <p style={{ opacity: 0.8, marginBottom: 12 }}>
-          No hay receta cargada aún. Vuelve a Home y genera una receta primero.
-        </p>
-        <a
-          href="/"
-          style={{
-            display: "inline-block",
-            border: "1px solid #111",
-            padding: "10px 12px",
-            borderRadius: 12,
-            fontWeight: 800,
-          }}
-        >
-          Ir a Home
-        </a>
-      </main>
+      <State
+        title="Modo Cocina"
+        message="No hay receta cargada aún. Vuelve a Home y genera una receta primero."
+        actionLabel="Ir a Home"
+        onAction={() => {
+          window.location.href = "/";
+        }}
+      />
     );
   }
 
@@ -379,7 +370,6 @@ export default function CookPage() {
                 if (!running) unlockAudio();
                 setJustFinished(false);
 
-                // ✅ Analytics: start/pause
                 track(running ? "timer_pause" : "timer_start", {
                   stepIdx,
                   total: recipe.steps.length,
@@ -404,7 +394,6 @@ export default function CookPage() {
 
             <button
               onClick={() => {
-                // ✅ Analytics: reset
                 track("timer_reset", {
                   stepIdx,
                   total: recipe.steps.length,
@@ -436,13 +425,11 @@ export default function CookPage() {
           onClick={() => {
             setJustFinished(false);
 
-            // Si estoy en el primer paso, volver significa volver a Preparación
             if (stepIdx === 0) {
               window.location.href = "/prep";
               return;
             }
 
-            // Si no, retrocedo un paso normal
             setStepIdx((i) => Math.max(0, i - 1));
           }}
           disabled={!recipe || total <= 0}
@@ -502,7 +489,6 @@ export default function CookPage() {
             ))}
           </ul>
 
-          {/* ✅ Nuevo: Story 1080x1920 */}
           <button
             onClick={() => {
               try {
