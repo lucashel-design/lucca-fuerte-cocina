@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import State from "@/src/components/ui/State";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 
 type Prefs = {
@@ -54,7 +55,6 @@ export default function PrepPage() {
     } catch {}
   }
 
-
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(RECIPE_KEY);
@@ -72,7 +72,6 @@ export default function PrepPage() {
 
       setRecipe(parsed.data);
     } catch {
-      // si hay JSON roto, limpiamos para no dejar la app en un estado raro
       sessionStorage.removeItem(RECIPE_KEY);
       setRecipe(null);
     }
@@ -111,7 +110,6 @@ export default function PrepPage() {
       menuPitch: recipe?.menuPitch ?? "",
       timeMinutes: recipe?.timeMinutes ?? 20,
       servings: recipe?.servings ?? 1,
-      // mandamos solo nombres (y pasos) para anclar sin inflar tokens
       ingredients: (recipe?.ingredients ?? []).map((i: any) => i?.item ?? "").filter(Boolean),
       steps: (recipe?.steps ?? []).map((s: any) => ({
         text: s?.text ?? "",
@@ -120,11 +118,9 @@ export default function PrepPage() {
     };
   }
 
-
   async function regenerateWithoutMissing() {
     if (!recipe) return;
 
-    // 1) missing => string[] (esto es lo que la API necesita)
     const missingList = Object.entries(missingMap)
       .filter(([_, v]) => v)
       .map(([k]) => k);
@@ -134,21 +130,15 @@ export default function PrepPage() {
       return;
     }
 
-    track("prep_adapt_missing_submit", {
-      missingCount: missingList.length,
-    });
+    track("prep_adapt_missing_submit", { missingCount: missingList.length });
 
     setRegenLoading(true);
     setRegenErr(null);
 
     try {
-      // 2) Ancla: receta base compacta (barato en tokens)
       const baseRecipe = compactRecipeForAdaptation(recipe);
-
-      // 3) Contexto opcional: prompt original (si lo tenías guardado)
       const basePrompt = sessionStorage.getItem(PROMPT_KEY) || "";
 
-      // 4) Prefs (si existen)
       let prefs: Prefs | undefined = undefined;
       try {
         const rawPrefs = localStorage.getItem(PREFS_KEY);
@@ -161,7 +151,7 @@ export default function PrepPage() {
         body: JSON.stringify({
           mode: "adapt_missing",
           baseRecipe,
-          missing: missingList, // ✅ array de strings
+          missing: missingList,
           prefs,
           basePrompt,
         }),
@@ -173,26 +163,17 @@ export default function PrepPage() {
         const errMsg = data?.error || "No se pudo adaptar la receta.";
         setRegenErr(errMsg);
 
-        track("prep_adapt_missing_error", {
-          missingCount: missingList.length,
-          error: errMsg,
-        });
-
+        track("prep_adapt_missing_error", { missingCount: missingList.length, error: errMsg });
         return;
       }
 
-      // 5) Validación fuerte con Zod
       const parsed = RecipeV1Schema.safeParse(data?.recipe);
 
       if (!parsed.success) {
         console.warn("La API devolvió una receta inválida", parsed.error.flatten(), data);
         setRegenErr("La receta volvió con un formato raro. Dale otra vez o vuelve a Pick.");
 
-        track("prep_adapt_missing_error", {
-          missingCount: missingList.length,
-          error: "schema_invalid",
-        });
-
+        track("prep_adapt_missing_error", { missingCount: missingList.length, error: "schema_invalid" });
         return;
       }
 
@@ -200,42 +181,28 @@ export default function PrepPage() {
       setRecipe(parsed.data);
       setMissingOpen(false);
 
-      track("prep_adapt_missing_success", {
-        missingCount: missingList.length,
-      });
+      track("prep_adapt_missing_success", { missingCount: missingList.length });
     } catch (e: any) {
       const msg = e?.message || String(e);
       setRegenErr(msg);
 
-      track("prep_adapt_missing_error", {
-        missingCount: missingList.length,
-        error: msg,
-      });
+      track("prep_adapt_missing_error", { missingCount: missingList.length, error: msg });
     } finally {
       setRegenLoading(false);
     }
   }
 
+  // ✅ Consistencia visual: State cuando no hay receta
   if (!recipe) {
     return (
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: 16 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 900, marginBottom: 8 }}>Preparación</h1>
-        <p style={{ opacity: 0.8, marginBottom: 12 }}>
-          No hay receta cargada. Vuelve a Home y genera una receta primero.
-        </p>
-        <a
-          href="/"
-          style={{
-            display: "inline-block",
-            border: "1px solid #111",
-            padding: "10px 12px",
-            borderRadius: 12,
-            fontWeight: 800,
-          }}
-        >
-          Ir a Home
-        </a>
-      </main>
+      <State
+        title="Preparación"
+        message="No hay receta cargada. Vuelve a Home y genera una receta primero."
+        actionLabel="Ir a Home"
+        onAction={() => {
+          window.location.href = "/";
+        }}
+      />
     );
   }
 
@@ -288,7 +255,6 @@ export default function PrepPage() {
               track("prep_start_cook", { stepIdx: 0 });
               window.location.href = "/cook";
             }}
-
             style={{
               flex: 1,
               border: "1px solid #111",
