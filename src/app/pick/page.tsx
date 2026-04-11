@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Button from "@/src/components/ui/Button";
 import Card from "@/src/components/ui/Card";
+import State from "@/src/components/ui/State";
 
 type Recipe = {
   title: string;
@@ -159,7 +160,6 @@ export default function PickPage() {
   const [err, setErr] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
 
-  // Tiempo desde que se abre Pick (para “tiempo hasta elegir”)
   const pickOpenTsRef = useRef<number | null>(null);
   const openTrackedRef = useRef(false);
 
@@ -293,24 +293,14 @@ export default function PickPage() {
 
   if (!recipe) {
     return (
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: 16 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 900, marginBottom: 8 }}>Elige tu plato</h1>
-        <p style={{ opacity: 0.8, marginBottom: 12 }}>
-          No hay propuesta cargada aún. Vuelve a Home y genera una receta primero.
-        </p>
-        <a
-          href="/"
-          style={{
-            display: "inline-block",
-            border: "1px solid #111",
-            padding: "10px 12px",
-            borderRadius: 12,
-            fontWeight: 800,
-          }}
-        >
-          Ir a Home
-        </a>
-      </main>
+      <State
+        title="Elige tu plato"
+        message="No hay propuesta cargada aún. Vuelve a Home y genera una receta primero."
+        actionLabel="Ir a Home"
+        onAction={() => {
+          window.location.href = "/";
+        }}
+      />
     );
   }
 
@@ -318,19 +308,29 @@ export default function PickPage() {
     <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Match de platos</div>
+          <div style={{ fontSize: 12, color: "var(--muted-2)" }}>Match de platos</div>
           <div style={{ fontSize: 14, fontWeight: 950, margin: "6px 0 2px" }}>Elige tu plato</div>
         </div>
 
         {/* ✅ NO CAMBIAR: Volver a Home */}
-        <a href="/" style={{ border: "1px solid #111", padding: "8px 10px", borderRadius: 12 }}>
+        <a
+          href="/"
+          style={{
+            border: "var(--border)",
+            padding: "8px 10px",
+            borderRadius: "var(--r-md)",
+            background: "var(--card)",
+            color: "var(--fg)",
+            textDecoration: "none",
+            fontWeight: 900,
+          }}
+        >
           Volver
         </a>
       </div>
 
-      {/* ✅ Card consistente */}
       <Card style={{ marginTop: 14 }}>
-        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Sugerencias del Chef:</div>
+        <div style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 8 }}>Sugerencias del Chef:</div>
 
         <img
           src={svgCardDataUri(recipe.title)}
@@ -344,35 +344,33 @@ export default function PickPage() {
           }}
         />
 
-        <div style={{ marginTop: 12, fontSize: 18, fontWeight: 950, lineHeight: 1.15 }}>
-          {recipe.title}
-        </div>
+        <div style={{ marginTop: 12, fontSize: 18, fontWeight: 950, lineHeight: 1.15 }}>{recipe.title}</div>
 
-        <div style={{ marginTop: 8, fontSize: 14, opacity: 0.85, lineHeight: 1.35 }}>
+        <div style={{ marginTop: 8, fontSize: 14, color: "var(--muted)", lineHeight: 1.35 }}>
           {recipe.menuPitch || fallbackMenuPitch(recipe.title)}
         </div>
 
-        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
+        <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted-2)" }}>
           {recipe.timeMinutes} min · {recipe.servings} raciones
         </div>
 
         {err && (
-          <div style={{ marginTop: 12, border: "1px solid #c00", padding: 10, borderRadius: 12 }}>
+          <div
+            style={{
+              marginTop: 12,
+              border: "1px solid #c00",
+              padding: 10,
+              borderRadius: "var(--r-lg)",
+              background: "var(--card)",
+            }}
+          >
             ⚠️ {err}
           </div>
         )}
       </Card>
 
       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-        <Button
-          variant="secondary"
-          onClick={dislikeAndGetAnother}
-          loading={loading}
-          style={{
-            flex: 1,
-            padding: "14px 12px",
-          }}
-        >
+        <Button variant="secondary" onClick={dislikeAndGetAnother} loading={loading} style={{ flex: 1, padding: "14px 12px" }}>
           No me gusta
         </Button>
 
@@ -388,16 +386,13 @@ export default function PickPage() {
 
             window.location.href = "/prep";
           }}
-          style={{
-            flex: 1,
-            padding: "14px 12px",
-          }}
+          style={{ flex: 1, padding: "14px 12px" }}
         >
           Me gusta
         </Button>
       </div>
 
-      <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
+      <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted-2)" }}>
         Consejo: si dudas, pulsa “No me gusta” 1 vez. La segunda opción suele clavarla.
       </div>
     </main>
