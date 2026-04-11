@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Card from "@/src/components/ui/Card";
+import Button from "@/src/components/ui/Button";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -34,6 +36,7 @@ export default function HomePage() {
         "Ey 👨‍🍳 Soy Lucca.Fuerte. Dime qué te apetece hoy (o qué tienes en la nevera) y te lo resuelvo en 20 min.",
     },
   ]);
+
   const quick = [
     { label: "Tengo esto…", text: "Tengo: ___. Quiero cena en 20 min. Dame 2 opciones y elige 1." },
     { label: "Pasta", text: "Quiero una receta de pasta viral en 20 min (4-6 ingredientes) con wow." },
@@ -45,15 +48,17 @@ export default function HomePage() {
     { label: "Para niños", text: "Cena para niños quisquillosos (20 min), rica y fácil." },
     { label: "Snack", text: "Snack salado rápido para picar, con wow." },
   ];
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+
   const [showSettings, setShowSettings] = useState(false);
   const [servingsOpen, setServingsOpen] = useState(false);
-  const [fromChat, setFromChat] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [servings, setServings] = useState(2);
+
   const STYLE_OPTIONS = [
     "Saludable",
     "Comfort",
@@ -92,18 +97,6 @@ export default function HomePage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  async function sendText(text: string) {
-    const cleaned = text.trim();
-    if (!cleaned || loading) return;
-    setInput(cleaned);
-    // Espera un tick para que el estado se actualice, y envía
-    setTimeout(() => {
-      setInput("");
-      // Llamamos a send con el texto sin depender del input
-      sendWithText(cleaned);
-    }, 0);
-  }
-
   async function sendWithText(text: string) {
     if (!text || loading) return;
 
@@ -112,9 +105,7 @@ export default function HomePage() {
     setLoading(true);
 
     try {
-      const shortHistory = nextMessages
-        .slice(-6)
-        .map((m) => ({ role: m.role, content: m.content }));
+      const shortHistory = nextMessages.slice(-6).map((m) => ({ role: m.role, content: m.content }));
 
       const res = await fetch("/api/recipe", {
         method: "POST",
@@ -130,10 +121,8 @@ export default function HomePage() {
           { role: "assistant", content: `⚠️ Error: ${data?.error || "Algo falló"}` },
         ]);
       } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: String(data?.text || "") },
-        ]);
+        // Nota: si tu /api/recipe devuelve receta y no "text", aquí podrías ajustar.
+        setMessages((prev) => [...prev, { role: "assistant", content: String(data?.text || "") }]);
       }
     } catch (e: any) {
       setMessages((prev) => [
@@ -146,44 +135,41 @@ export default function HomePage() {
   }
 
   async function cookWithPrompt(prompt: string) {
-  const text = prompt.trim();
-  if (!text || loading) return;
-  
-  setMessages((prev) => [
-    ...prev,
-    { role: "user", content: prompt },
-    { role: "assistant", content: "Perfecto. Dame 5 segundos y te lo dejo listo 👨‍🍳" },
-  ]);
+    const text = prompt.trim();
+    if (!text || loading) return;
 
-  setLoading(true);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: prompt },
+      { role: "assistant", content: "Perfecto. Dame 5 segundos y te lo dejo listo 👨‍🍳" },
+    ]);
 
-  const styleLine = selectedStyles.length ? `ESTILO: ${selectedStyles.join(", ")}` : "";
-  const finalPrompt = [prompt, styleLine, `RACIONES: ${servings}`].filter(Boolean).join("\n");
+    setLoading(true);
 
-  sessionStorage.setItem("lucca_last_prompt_v1", finalPrompt);
+    const styleLine = selectedStyles.length ? `ESTILO: ${selectedStyles.join(", ")}` : "";
+    const finalPrompt = [prompt, styleLine, `RACIONES: ${servings}`].filter(Boolean).join("\n");
 
-  try {
-    const res = await fetch("/api/recipe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userMessage: finalPrompt, prefs }),
-    });
+    sessionStorage.setItem("lucca_last_prompt_v1", finalPrompt);
 
-    const data = await res.json();
+    try {
+      const res = await fetch("/api/recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userMessage: finalPrompt, prefs }),
+      });
 
-    if (!res.ok) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `⚠️ Error: ${data?.error || "No se pudo generar la receta"}` },
-      ]);
-      return;
-    }
+      const data = await res.json();
 
-    // Guardamos la receta para que /cook la lea
-    sessionStorage.setItem("lucca_current_recipe_v1", JSON.stringify(data.recipe));
+      if (!res.ok) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `⚠️ Error: ${data?.error || "No se pudo generar la receta"}` },
+        ]);
+        return;
+      }
 
-    // Ir directo a modo cocina
-    window.location.href = "/pick";
+      sessionStorage.setItem("lucca_current_recipe_v1", JSON.stringify(data.recipe));
+      window.location.href = "/pick";
     } catch (e: any) {
       setMessages((prev) => [
         ...prev,
@@ -200,8 +186,6 @@ export default function HomePage() {
 
     setInput("");
 
-    // Abrimos flujo estilo->raciones y luego cocinar con ese prompt
-    setFromChat(true);
     setPendingPrompt(text);
     setSelectedStyles([]);
     setServings(2);
@@ -210,35 +194,26 @@ export default function HomePage() {
 
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 96 }}>
+      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Hoy Cocino</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>Hoy Cocino</h1>
 
-        <button
-          onClick={() => setShowSettings(true)}
-          style={{
-            padding: "8px 10px",
-            borderRadius: 12,
-            border: "1px solid #111",
-            background: "#fff",
-            color: "#111",
-            cursor: "pointer",
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
+        <Button variant="secondary" onClick={() => setShowSettings(true)} style={{ padding: "8px 10px" }}>
           Ajustes
-        </button>
+        </Button>
       </div>
 
-      <p style={{ opacity: 0.8, marginBottom: 16 }}>
+      <p style={{ color: "var(--muted)", marginBottom: 16 }}>
         “Hoy cocino X”. Dime lo que tienes y te lo dejo fácil.
       </p>
 
-      {/* Botones rápidos */}
+      {/* Quick */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
         {quick.map((q) => (
-          <button
+          <Button
             key={q.label}
+            variant="primary"
+            disabled={loading}
             onClick={() => {
               setPendingPrompt(q.text);
               setSelectedStyles([]);
@@ -248,20 +223,17 @@ export default function HomePage() {
             style={{
               padding: "8px 10px",
               borderRadius: 999,
-              border: "1px solid #111",
-              background: "#111",
-              color: "#fff",
-              cursor: loading ? "not-allowed" : "pointer",
               fontSize: 13,
+              fontWeight: 900,
               opacity: loading ? 0.6 : 1,
             }}
-            disabled={loading}
           >
             {q.label}
-          </button>
+          </Button>
         ))}
       </div>
 
+      {/* Modal estilos */}
       {stylesOpen && (
         <div
           onClick={() => setStylesOpen(false)}
@@ -276,82 +248,52 @@ export default function HomePage() {
             zIndex: 60,
           }}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 520,
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #111",
-              padding: 16,
-            }}
-          >
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>¿Qué estilo te apetece?</div>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 520 }}>
+            <Card>
+              <div style={{ fontWeight: 950, marginBottom: 10 }}>¿Qué estilo te apetece?</div>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-              {STYLE_OPTIONS.map((s) => {
-                const active = selectedStyles.includes(s);
-                return (
-                  <button
-                    key={s}
-                    onClick={() => toggleStyle(s)}
-                    style={{
-                      border: "1px solid #111",
-                      padding: "10px 12px",
-                      borderRadius: 999,
-                      background: active ? "#111" : "#fff",
-                      color: active ? "#fff" : "#111",
-                      fontWeight: 900,
-                      cursor: "pointer",
-                      fontSize: 13,
-                    }}
-                  >
-                    {s}
-                  </button>
-                );
-              })}
-            </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                {STYLE_OPTIONS.map((s) => {
+                  const active = selectedStyles.includes(s);
+                  return (
+                    <Button
+                      key={s}
+                      variant={active ? "primary" : "secondary"}
+                      onClick={() => toggleStyle(s)}
+                      style={{
+                        borderRadius: 999,
+                        padding: "10px 12px",
+                        fontSize: 13,
+                      }}
+                    >
+                      {s}
+                    </Button>
+                  );
+                })}
+              </div>
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => setStylesOpen(false)}
-                style={{
-                  flex: 1,
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                Cancelar
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button variant="secondary" onClick={() => setStylesOpen(false)} style={{ flex: 1 }}>
+                  Cancelar
+                </Button>
 
-              <button
-                onClick={() => {
-                  setStylesOpen(false);
-                  setServingsOpen(true);
-                }}
-                style={{
-                  flex: 1,
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "#111",
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                Seguir
-              </button>
-            </div>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setStylesOpen(false);
+                    setServingsOpen(true);
+                  }}
+                  style={{ flex: 1 }}
+                >
+                  Seguir
+                </Button>
+              </div>
+            </Card>
           </div>
         </div>
       )}
 
+      {/* Modal raciones */}
       {servingsOpen && (
         <div
           onClick={() => {
@@ -369,123 +311,102 @@ export default function HomePage() {
             zIndex: 60,
           }}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 420,
-              background: "#fff",
-              borderRadius: 16,
-              border: "1px solid #111",
-              padding: 16,
-            }}
-          >
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>
-              ¿Para cuántas personas?
-            </div>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420 }}>
+            <Card>
+              <div style={{ fontWeight: 950, marginBottom: 10 }}>¿Para cuántas personas?</div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setServings(n)}
-                  style={{
-                    flex: "1 0 28%",
-                    border: "1px solid #111",
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    background: servings === n ? "#111" : "#fff",
-                    color: servings === n ? "#fff" : "#111",
-                    fontWeight: 900,
-                    cursor: "pointer",
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <Button
+                    key={n}
+                    variant={servings === n ? "primary" : "secondary"}
+                    onClick={() => setServings(n)}
+                    style={{
+                      flex: "1 0 28%",
+                      padding: "10px 12px",
+                    }}
+                  >
+                    {n}
+                  </Button>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setServingsOpen(false);
+                    setPendingPrompt(null);
                   }}
+                  style={{ flex: 1 }}
                 >
-                  {n}
-                </button>
-              ))}
-            </div>
+                  Cancelar
+                </Button>
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => {
-                  setServingsOpen(false);
-                  setPendingPrompt(null);
-                }}
-                style={{
-                  flex: 1,
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                Cancelar
-              </button>
-
-              <button
-                onClick={async () => {
-                  if (!pendingPrompt) return;
-                  setServingsOpen(false);
-                  const p = pendingPrompt;
-                  setPendingPrompt(null);
-                  setFromChat(false);
-                  await cookWithPrompt(p);
-                }}
-                style={{
-                  flex: 1,
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "#111",
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                Cocinar
-              </button>
-            </div>
+                <Button
+                  variant="primary"
+                  onClick={async () => {
+                    if (!pendingPrompt) return;
+                    setServingsOpen(false);
+                    const p = pendingPrompt;
+                    setPendingPrompt(null);
+                    await cookWithPrompt(p);
+                  }}
+                  style={{ flex: 1 }}
+                >
+                  Cocinar
+                </Button>
+              </div>
+            </Card>
           </div>
         </div>
       )}
 
+      {/* Chat */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {messages.map((m, idx) => (
-          <div
-            key={idx}
-            style={{
-              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-              background: m.role === "user" ? "#111" : "#f2f2f2",
-              color: m.role === "user" ? "#fff" : "#000",
-              padding: "10px 12px",
-              borderRadius: 14,
-              maxWidth: "92%",
-              whiteSpace: "pre-wrap",
-              lineHeight: 1.35,
-            }}
-          >
-            {m.content}
-          </div>
-        ))}
+        {messages.map((m, idx) => {
+          const isUser = m.role === "user";
+          return (
+            <div
+              key={idx}
+              style={{
+                alignSelf: isUser ? "flex-end" : "flex-start",
+                background: isUser ? "var(--fg)" : "var(--card)",
+                color: isUser ? "var(--bg)" : "var(--fg)",
+                border: isUser ? "none" : "var(--border)",
+                padding: "10px 12px",
+                borderRadius: "var(--r-lg)",
+                maxWidth: "92%",
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.35,
+              }}
+            >
+              {m.content}
+            </div>
+          );
+        })}
+
         {loading && (
           <div
             style={{
               alignSelf: "flex-start",
-              background: "#f2f2f2",
+              background: "var(--card)",
+              border: "var(--border)",
               padding: "10px 12px",
-              borderRadius: 14,
+              borderRadius: "var(--r-lg)",
               maxWidth: "92%",
               opacity: 0.8,
+              color: "var(--fg)",
             }}
           >
             Pensando…
           </div>
         )}
+
         <div ref={bottomRef} />
       </div>
 
+      {/* Modal ajustes */}
       {showSettings && (
         <div
           onClick={() => setShowSettings(false)}
@@ -500,68 +421,66 @@ export default function HomePage() {
             zIndex: 50,
           }}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 520,
-              background: "#111",
-              borderRadius: 16,
-              border: "1px solid #111",
-              padding: 16,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontWeight: 800, fontSize: 16 }}>Ajustes</div>
-              <button
-                onClick={() => setShowSettings(false)}
-                style={{ fontWeight: 800, fontSize: 16, border: "1px solid #111", background: "#fff", padding: "6px 10px", borderRadius: 10, cursor: "pointer", color: "black" }}
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Tipo de cocina</div>
-              <select
-                value={prefs.cuisine}
-                onChange={(e) => setPrefs((p) => ({ ...p, cuisine: e.target.value }))}
-                style={{ width: "100%", padding: 10, borderRadius: 12, border: "1px solid #111" }}
-              >
-                <option>Española</option>
-                <option>Italiana</option>
-                <option>Mediterránea</option>
-                <option>Latina</option>
-                <option>Asiática</option>
-                <option>Flexible</option>
-              </select>
-            </div>
-
-            <div style={{ marginBottom: 6 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Equipo disponible</div>
-
-              {(
-                [
-                  ["airfryer", "Airfryer"],
-                  ["thermomix", "Thermomix"],
-                  ["horno", "Horno"],
-                  ["ollaExpress", "Olla exprés"],
-                ] as const
-              ).map(([key, label]) => (
-                <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
-                  <input
-                    type="checkbox"
-                    checked={prefs.equipment[key]}
-                    onChange={(e) => setPrefs((p) => ({ ...p, equipment: { ...p.equipment, [key]: e.target.checked } }))}
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-
-              <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>
-                Se guarda automáticamente en este dispositivo (sin registro).
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 520 }}>
+            <Card>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontWeight: 950, fontSize: 16 }}>Ajustes</div>
+                <Button variant="secondary" onClick={() => setShowSettings(false)} style={{ padding: "6px 10px" }}>
+                  Cerrar
+                </Button>
               </div>
-            </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 900, marginBottom: 6 }}>Tipo de cocina</div>
+                <select
+                  value={prefs.cuisine}
+                  onChange={(e) => setPrefs((p) => ({ ...p, cuisine: e.target.value }))}
+                  style={{
+                    width: "100%",
+                    padding: 10,
+                    borderRadius: 12,
+                    border: "var(--border)",
+                    background: "var(--card)",
+                    color: "var(--fg)",
+                  }}
+                >
+                  <option>Española</option>
+                  <option>Italiana</option>
+                  <option>Mediterránea</option>
+                  <option>Latina</option>
+                  <option>Asiática</option>
+                  <option>Flexible</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ fontWeight: 900, marginBottom: 6 }}>Equipo disponible</div>
+
+                {(
+                  [
+                    ["airfryer", "Airfryer"],
+                    ["thermomix", "Thermomix"],
+                    ["horno", "Horno"],
+                    ["ollaExpress", "Olla exprés"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+                    <input
+                      type="checkbox"
+                      checked={prefs.equipment[key]}
+                      onChange={(e) =>
+                        setPrefs((p) => ({ ...p, equipment: { ...p.equipment, [key]: e.target.checked } }))
+                      }
+                    />
+                    <span style={{ color: "var(--fg)" }}>{label}</span>
+                  </label>
+                ))}
+
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+                  Se guarda automáticamente en este dispositivo (sin registro).
+                </div>
+              </div>
+            </Card>
           </div>
         </div>
       )}
@@ -573,8 +492,8 @@ export default function HomePage() {
           left: 0,
           right: 0,
           bottom: 0,
-          background: "white",
-          borderTop: "1px solid #eee",
+          background: "var(--card)",
+          borderTop: "var(--border)",
           padding: 12,
         }}
       >
@@ -590,27 +509,16 @@ export default function HomePage() {
               flex: 1,
               padding: "12px 12px",
               borderRadius: 12,
-              border: "1px solid #111",
+              border: "var(--border)",
               outline: "none",
-              color: "#111",
-              background: "#fff",
+              color: "var(--fg)",
+              background: "var(--card)",
             }}
           />
-          <button
-            onClick={send}
-            disabled={loading}
-            style={{
-              padding: "12px 14px",
-              borderRadius: 12,
-              border: "1px solid #111",
-              background: loading ? "#999" : "#111",
-              color: "white",
-              fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
-          >
-            Enviar
-          </button>
+
+          <Button variant="primary" onClick={send} disabled={loading} style={{ padding: "12px 14px" }}>
+            {loading ? "…" : "Enviar"}
+          </Button>
         </div>
       </div>
     </main>
