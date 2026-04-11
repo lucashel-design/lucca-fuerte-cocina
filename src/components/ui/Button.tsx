@@ -26,8 +26,8 @@ export default function Button({
   const isDisabled = disabled || loading;
 
   const base: React.CSSProperties = {
-    border: "1px solid #111",
-    borderRadius: 14,
+    border: "var(--border)",
+    borderRadius: "var(--r-lg)" as any, // CSS var string
     padding: "12px 12px",
     fontWeight: 900,
     cursor: isDisabled ? "not-allowed" : "pointer",
@@ -36,8 +36,10 @@ export default function Button({
   };
 
   const variants: Record<ButtonVariant, React.CSSProperties> = {
-    primary: { background: "#111", color: "#fff" },
-    secondary: { background: "#fff", color: "#111" },
+    // primary: botón “negro” (en realidad, usa fg como fondo)
+    primary: { background: "var(--fg)", color: "var(--bg)" },
+    // secondary: botón “blanco” (en realidad, usa card como fondo)
+    secondary: { background: "var(--card)", color: "var(--fg)" },
   };
 
   return (
