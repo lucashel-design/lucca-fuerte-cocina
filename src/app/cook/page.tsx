@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CoachDock from "@/src/components/CoachDock";
 import State from "@/src/components/ui/State";
+import Card from "@/src/components/ui/Card";
+import Button from "@/src/components/ui/Button";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 
 const KEY = "lucca_current_recipe_v1";
@@ -48,7 +50,6 @@ function wrapText(
   }
 
   if (line && lines < maxLines) {
-    // si nos pasamos, recorta con "…"
     let finalLine = line;
     while (ctx.measureText(finalLine).width > maxWidth && finalLine.length > 3) {
       finalLine = finalLine.slice(0, -2).trim() + "…";
@@ -73,14 +74,12 @@ function downloadStoryCard(recipe: RecipeV1) {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas no soportado");
 
-  // Fondo (elegante)
   const g = ctx.createLinearGradient(0, 0, W, H);
   g.addColorStop(0, "#0b0b0b");
   g.addColorStop(1, "#232323");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
-  // “Plato” decorativo
   ctx.globalAlpha = 0.18;
   ctx.fillStyle = "#ffffff";
   ctx.beginPath();
@@ -88,16 +87,13 @@ function downloadStoryCard(recipe: RecipeV1) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // Header
   ctx.fillStyle = "#ffffff";
   ctx.font = "700 34px system-ui, -apple-system, Segoe UI, Roboto";
   ctx.fillText("Lucca.Fuerte Cocina", 70, 110);
 
-  // Título
   ctx.font = "900 72px system-ui, -apple-system, Segoe UI, Roboto";
   wrapText(ctx, title, 70, 230, W - 140, 86, 3);
 
-  // Pitch
   if (pitch) {
     ctx.globalAlpha = 0.9;
     ctx.font = "600 36px system-ui, -apple-system, Segoe UI, Roboto";
@@ -105,20 +101,17 @@ function downloadStoryCard(recipe: RecipeV1) {
     ctx.globalAlpha = 1;
   }
 
-  // TRUCO
   ctx.globalAlpha = 0.95;
   ctx.font = "900 34px system-ui, -apple-system, Segoe UI, Roboto";
   ctx.fillText("TRUCO", 70, 980);
   ctx.font = "600 34px system-ui, -apple-system, Segoe UI, Roboto";
   wrapText(ctx, trick || "—", 70, 1040, W - 140, 46, 3);
 
-  // WOW
   ctx.font = "900 34px system-ui, -apple-system, Segoe UI, Roboto";
   ctx.fillText("WOW (opcional)", 70, 1220);
   ctx.font = "600 34px system-ui, -apple-system, Segoe UI, Roboto";
   wrapText(ctx, wow || "—", 70, 1280, W - 140, 46, 3);
 
-  // Marca de agua
   ctx.globalAlpha = 0.75;
   ctx.font = "800 30px system-ui, -apple-system, Segoe UI, Roboto";
   ctx.fillText("© Lucca.Fuerte Cocina", 70, H - 90);
@@ -290,7 +283,6 @@ export default function CookPage() {
           beep();
           setJustFinished(true);
 
-          // ✅ Analytics: terminó el timer
           track("timer_finish", {
             stepIdx,
             total: recipe?.steps?.length || 0,
@@ -310,7 +302,6 @@ export default function CookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
 
-  // ✅ Consistencia visual: State cuando no hay receta
   if (!recipe) {
     return (
       <State
@@ -332,28 +323,38 @@ export default function CookPage() {
     <main style={{ maxWidth: 720, margin: "0 auto", padding: 16, paddingBottom: 170 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Modo Cocina</div>
+          <div style={{ fontSize: 12, color: "var(--muted-2)" }}>Modo Cocina</div>
           <h1 style={{ fontSize: 20, fontWeight: 900, margin: "6px 0 2px" }}>{recipe.title}</h1>
-          <div style={{ fontSize: 13, opacity: 0.8 }}>
+          <div style={{ fontSize: 13, color: "var(--muted)" }}>
             {recipe.timeMinutes} min · {recipe.servings} raciones
           </div>
         </div>
 
-        <a href="/" style={{ border: "1px solid #111", padding: "8px 10px", borderRadius: 12 }}>
+        <a
+          href="/"
+          style={{
+            border: "var(--border)",
+            padding: "8px 10px",
+            borderRadius: "var(--r-md)",
+            background: "var(--card)",
+            color: "var(--fg)",
+            textDecoration: "none",
+            fontWeight: 900,
+          }}
+        >
           Salir
         </a>
       </div>
 
-      <div style={{ marginTop: 14, border: "1px solid #111", borderRadius: 16, padding: 16 }}>
+      {/* ✅ Card principal del paso */}
+      <Card style={{ marginTop: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontWeight: 800 }}>
+          <div style={{ fontWeight: 900 }}>
             Paso {stepIdx + 1} / {total}
           </div>
 
           {showTimerUI && (
-            <div style={{ fontFamily: "monospace", fontWeight: 800, fontSize: 18 }}>
-              {formatMMSS(remaining)}
-            </div>
+            <div style={{ fontFamily: "monospace", fontWeight: 900, fontSize: 18 }}>{formatMMSS(remaining)}</div>
           )}
         </div>
 
@@ -365,7 +366,8 @@ export default function CookPage() {
 
         {showTimerUI && (
           <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-            <button
+            <Button
+              variant="primary"
               onClick={() => {
                 if (!running) unlockAudio();
                 setJustFinished(false);
@@ -379,20 +381,12 @@ export default function CookPage() {
 
                 setRunning((v) => !v);
               }}
-              style={{
-                border: "1px solid #111",
-                background: "#111",
-                color: "#fff",
-                padding: "10px 12px",
-                borderRadius: 12,
-                cursor: "pointer",
-                fontWeight: 700,
-              }}
             >
               {running ? "Pausar" : "Start"}
-            </button>
+            </Button>
 
-            <button
+            <Button
+              variant="secondary"
               onClick={() => {
                 track("timer_reset", {
                   stepIdx,
@@ -404,24 +398,17 @@ export default function CookPage() {
                 setRemaining(currentStep?.timerSec || 0);
                 setJustFinished(false);
               }}
-              style={{
-                border: "1px solid #111",
-                background: "#fff",
-                color: "#111",
-                padding: "10px 12px",
-                borderRadius: 12,
-                cursor: "pointer",
-                fontWeight: 700,
-              }}
             >
               Reset
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </Card>
 
+      {/* ✅ Navegación (sin botones extra) */}
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button
+        <Button
+          variant="secondary"
           onClick={() => {
             setJustFinished(false);
 
@@ -433,21 +420,13 @@ export default function CookPage() {
             setStepIdx((i) => Math.max(0, i - 1));
           }}
           disabled={!recipe || total <= 0}
-          style={{
-            flex: 1,
-            border: "1px solid #111",
-            background: "#fff",
-            color: "#111",
-            padding: "12px 12px",
-            borderRadius: 14,
-            cursor: "pointer",
-            fontWeight: 800,
-          }}
+          style={{ flex: 1 }}
         >
           Volver
-        </button>
+        </Button>
 
-        <button
+        <Button
+          variant="primary"
           onClick={() => {
             setJustFinished(false);
             setStepIdx((i) => Math.min(total - 1, i + 1));
@@ -455,22 +434,18 @@ export default function CookPage() {
           disabled={stepIdx >= total - 1}
           style={{
             flex: 1,
-            border: "1px solid #111",
-            background: stepIdx >= total - 1 ? "#ddd" : "#111",
-            color: stepIdx >= total - 1 ? "#111" : "#fff",
-            padding: "12px 12px",
-            borderRadius: 14,
-            cursor: stepIdx >= total - 1 ? "not-allowed" : "pointer",
-            fontWeight: 800,
+            background: stepIdx >= total - 1 ? "#ddd" : "var(--fg)",
+            color: stepIdx >= total - 1 ? "#111" : "var(--bg)",
           }}
         >
           Avanzar
-        </button>
+        </Button>
       </div>
 
+      {/* ✅ Cierre final */}
       {stepIdx === total - 1 && (
-        <div style={{ marginTop: 14, border: "1px solid #111", borderRadius: 16, padding: 14 }}>
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>Cierre rápido</div>
+        <Card style={{ marginTop: 14 }}>
+          <div style={{ fontWeight: 950, marginBottom: 6 }}>Cierre rápido</div>
 
           <div style={{ marginBottom: 8 }}>
             <b>TRUCO:</b> {recipe.trick}
@@ -482,14 +457,15 @@ export default function CookPage() {
             <b>ARREGLO:</b> {recipe.fix}
           </div>
 
-          <div style={{ fontWeight: 800, marginTop: 8, marginBottom: 6 }}>Emplatado</div>
+          <div style={{ fontWeight: 900, marginTop: 8, marginBottom: 6 }}>Emplatado</div>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             {recipe.platingTips.slice(0, 3).map((t, idx) => (
               <li key={idx}>{t}</li>
             ))}
           </ul>
 
-          <button
+          <Button
+            variant="primary"
             onClick={() => {
               try {
                 downloadStoryCard(recipe);
@@ -499,21 +475,11 @@ export default function CookPage() {
                 track("story_download_error", { msg: e?.message || String(e) });
               }
             }}
-            style={{
-              marginTop: 12,
-              width: "100%",
-              border: "1px solid #111",
-              background: "#111",
-              color: "#fff",
-              padding: "12px 12px",
-              borderRadius: 14,
-              cursor: "pointer",
-              fontWeight: 900,
-            }}
+            style={{ marginTop: 12, width: "100%" }}
           >
             Descargar Story (1080×1920)
-          </button>
-        </div>
+          </Button>
+        </Card>
       )}
 
       <CoachDock recipe={recipe} stepIndex={stepIdx} />
