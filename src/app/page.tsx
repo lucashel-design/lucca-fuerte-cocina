@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Card from "@/src/components/ui/Card";
 import Button from "@/src/components/ui/Button";
+import Modal from "@/src/components/ui/Modal";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -234,133 +235,103 @@ export default function HomePage() {
       </div>
 
       {/* Modal estilos */}
-      {stylesOpen && (
-        <div
-          onClick={() => setStylesOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 60,
-          }}
-        >
-          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 520 }}>
-            <Card>
-              <div style={{ fontWeight: 950, marginBottom: 10 }}>¿Qué estilo te apetece?</div>
-
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                {STYLE_OPTIONS.map((s) => {
-                  const active = selectedStyles.includes(s);
-                  return (
-                    <Button
-                      key={s}
-                      variant={active ? "primary" : "secondary"}
-                      onClick={() => toggleStyle(s)}
-                      style={{
-                        borderRadius: 999,
-                        padding: "10px 12px",
-                        fontSize: 13,
-                      }}
-                    >
-                      {s}
-                    </Button>
-                  );
-                })}
-              </div>
-
-              <div style={{ display: "flex", gap: 8 }}>
-                <Button variant="secondary" onClick={() => setStylesOpen(false)} style={{ flex: 1 }}>
-                  Cancelar
-                </Button>
-
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    setStylesOpen(false);
-                    setServingsOpen(true);
-                  }}
-                  style={{ flex: 1 }}
-                >
-                  Seguir
-                </Button>
-              </div>
-            </Card>
-          </div>
+      <Modal
+        open={stylesOpen}
+        onClose={() => setStylesOpen(false)}
+        title="¿Qué estilo te apetece?"
+        maxWidth={520}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          {STYLE_OPTIONS.map((s) => {
+            const active = selectedStyles.includes(s);
+            return (
+              <Button
+                key={s}
+                variant={active ? "primary" : "secondary"}
+                onClick={() => toggleStyle(s)}
+                style={{
+                  borderRadius: 999,
+                  padding: "10px 12px",
+                  fontSize: 13,
+                }}
+              >
+                {s}
+              </Button>
+            );
+          })}
         </div>
-      )}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="secondary" onClick={() => setStylesOpen(false)} style={{ flex: 1 }}>
+            Cancelar
+          </Button>
+
+          <Button
+            variant="primary"
+            onClick={() => {
+              setStylesOpen(false);
+              setServingsOpen(true);
+            }}
+            style={{ flex: 1 }}
+          >
+            Seguir
+          </Button>
+        </div>
+      </Modal>
 
       {/* Modal raciones */}
-      {servingsOpen && (
-        <div
-          onClick={() => {
-            setServingsOpen(false);
-            setPendingPrompt(null);
-          }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 60,
-          }}
-        >
-          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420 }}>
-            <Card>
-              <div style={{ fontWeight: 950, marginBottom: 10 }}>¿Para cuántas personas?</div>
-
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <Button
-                    key={n}
-                    variant={servings === n ? "primary" : "secondary"}
-                    onClick={() => setServings(n)}
-                    style={{
-                      flex: "1 0 28%",
-                      padding: "10px 12px",
-                    }}
-                  >
-                    {n}
-                  </Button>
-                ))}
-              </div>
-
-              <div style={{ display: "flex", gap: 8 }}>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setServingsOpen(false);
-                    setPendingPrompt(null);
-                  }}
-                  style={{ flex: 1 }}
-                >
-                  Cancelar
-                </Button>
-
-                <Button
-                  variant="primary"
-                  onClick={async () => {
-                    if (!pendingPrompt) return;
-                    setServingsOpen(false);
-                    const p = pendingPrompt;
-                    setPendingPrompt(null);
-                    await cookWithPrompt(p);
-                  }}
-                  style={{ flex: 1 }}
-                >
-                  Cocinar
-                </Button>
-              </div>
-            </Card>
-          </div>
+      <Modal
+        open={servingsOpen}
+        onClose={() => {
+          setServingsOpen(false);
+          setPendingPrompt(null);
+        }}
+        title="¿Para cuántas personas?"
+        maxWidth={420}
+      >
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <Button
+              key={n}
+              variant={servings === n ? "primary" : "secondary"}
+              onClick={() => setServings(n)}
+              style={{
+                flex: "1 0 28%",
+                padding: "10px 12px",
+              }}
+            >
+              {n}
+            </Button>
+          ))}
         </div>
-      )}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setServingsOpen(false);
+              setPendingPrompt(null);
+            }}
+            style={{ flex: 1 }}
+          >
+            Cancelar
+          </Button>
+
+          <Button
+            variant="primary"
+            onClick={async () => {
+              if (!pendingPrompt) return;
+              setServingsOpen(false);
+              const p = pendingPrompt;
+              setPendingPrompt(null);
+              await cookWithPrompt(p);
+            }}
+            style={{ flex: 1 }}
+          >
+            Cocinar
+          </Button>
+        </div>
+      </Modal>
 
       {/* Chat */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
