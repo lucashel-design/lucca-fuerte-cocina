@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Card from "@/src/components/ui/Card";
 import Button from "@/src/components/ui/Button";
 import Modal from "@/src/components/ui/Modal";
+import Chip from "@/src/components/ui/Chip";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -122,7 +122,6 @@ export default function HomePage() {
           { role: "assistant", content: `⚠️ Error: ${data?.error || "Algo falló"}` },
         ]);
       } else {
-        // Nota: si tu /api/recipe devuelve receta y no "text", aquí podrías ajustar.
         setMessages((prev) => [...prev, { role: "assistant", content: String(data?.text || "") }]);
       }
     } catch (e: any) {
@@ -211,9 +210,8 @@ export default function HomePage() {
       {/* Quick */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
         {quick.map((q) => (
-          <Button
+          <Chip
             key={q.label}
-            variant="primary"
             disabled={loading}
             onClick={() => {
               setPendingPrompt(q.text);
@@ -221,26 +219,15 @@ export default function HomePage() {
               setServings(2);
               setStylesOpen(true);
             }}
-            style={{
-              padding: "8px 10px",
-              borderRadius: 999,
-              fontSize: 13,
-              fontWeight: 900,
-              opacity: loading ? 0.6 : 1,
-            }}
+            style={{ padding: "8px 10px" }} // un pelín más compacto que el chip normal
           >
             {q.label}
-          </Button>
+          </Chip>
         ))}
       </div>
 
       {/* Modal estilos */}
-      <Modal
-        open={stylesOpen}
-        onClose={() => setStylesOpen(false)}
-        title="¿Qué estilo te apetece?"
-        maxWidth={520}
-      >
+      <Modal open={stylesOpen} onClose={() => setStylesOpen(false)} title="¿Qué estilo te apetece?" maxWidth={520}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
           {STYLE_OPTIONS.map((s) => {
             const active = selectedStyles.includes(s);
@@ -377,84 +364,64 @@ export default function HomePage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Modal ajustes */}
-      {showSettings && (
-        <div
-          onClick={() => setShowSettings(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 50,
-          }}
-        >
-          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 520 }}>
-            <Card>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ fontWeight: 950, fontSize: 16 }}>Ajustes</div>
-                <Button variant="secondary" onClick={() => setShowSettings(false)} style={{ padding: "6px 10px" }}>
-                  Cerrar
-                </Button>
-              </div>
+      {/* ✅ Modal ajustes (migrado a Modal) */}
+      <Modal open={showSettings} onClose={() => setShowSettings(false)} title="Ajustes" maxWidth={520}>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>Tipo de cocina</div>
+          <select
+            value={prefs.cuisine}
+            onChange={(e) => setPrefs((p) => ({ ...p, cuisine: e.target.value }))}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 12,
+              border: "var(--border)",
+              background: "var(--card)",
+              color: "var(--fg)",
+            }}
+          >
+            <option>Española</option>
+            <option>Italiana</option>
+            <option>Mediterránea</option>
+            <option>Latina</option>
+            <option>Asiática</option>
+            <option>Flexible</option>
+          </select>
+        </div>
 
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontWeight: 900, marginBottom: 6 }}>Tipo de cocina</div>
-                <select
-                  value={prefs.cuisine}
-                  onChange={(e) => setPrefs((p) => ({ ...p, cuisine: e.target.value }))}
-                  style={{
-                    width: "100%",
-                    padding: 10,
-                    borderRadius: 12,
-                    border: "var(--border)",
-                    background: "var(--card)",
-                    color: "var(--fg)",
-                  }}
-                >
-                  <option>Española</option>
-                  <option>Italiana</option>
-                  <option>Mediterránea</option>
-                  <option>Latina</option>
-                  <option>Asiática</option>
-                  <option>Flexible</option>
-                </select>
-              </div>
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>Equipo disponible</div>
 
-              <div style={{ marginBottom: 6 }}>
-                <div style={{ fontWeight: 900, marginBottom: 6 }}>Equipo disponible</div>
+          {(
+            [
+              ["airfryer", "Airfryer"],
+              ["thermomix", "Thermomix"],
+              ["horno", "Horno"],
+              ["ollaExpress", "Olla exprés"],
+            ] as const
+          ).map(([key, label]) => (
+            <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+              <input
+                type="checkbox"
+                checked={prefs.equipment[key]}
+                onChange={(e) => setPrefs((p) => ({ ...p, equipment: { ...p.equipment, [key]: e.target.checked } }))}
+              />
+              <span style={{ color: "var(--fg)" }}>{label}</span>
+            </label>
+          ))}
 
-                {(
-                  [
-                    ["airfryer", "Airfryer"],
-                    ["thermomix", "Thermomix"],
-                    ["horno", "Horno"],
-                    ["ollaExpress", "Olla exprés"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
-                    <input
-                      type="checkbox"
-                      checked={prefs.equipment[key]}
-                      onChange={(e) =>
-                        setPrefs((p) => ({ ...p, equipment: { ...p.equipment, [key]: e.target.checked } }))
-                      }
-                    />
-                    <span style={{ color: "var(--fg)" }}>{label}</span>
-                  </label>
-                ))}
-
-                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
-                  Se guarda automáticamente en este dispositivo (sin registro).
-                </div>
-              </div>
-            </Card>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+            Se guarda automáticamente en este dispositivo (sin registro).
           </div>
         </div>
-      )}
+
+        {/* Extra UX móvil: botón grande para cerrar abajo */}
+        <div style={{ marginTop: 12 }}>
+          <Button variant="primary" onClick={() => setShowSettings(false)} style={{ width: "100%" }}>
+            Listo
+          </Button>
+        </div>
+      </Modal>
 
       {/* Barra fija abajo */}
       <div
