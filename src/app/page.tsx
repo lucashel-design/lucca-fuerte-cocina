@@ -232,18 +232,13 @@ export default function HomePage() {
           {STYLE_OPTIONS.map((s) => {
             const active = selectedStyles.includes(s);
             return (
-              <Button
+              <Chip
                 key={s}
-                variant={active ? "primary" : "secondary"}
+                active={active}
                 onClick={() => toggleStyle(s)}
-                style={{
-                  borderRadius: 999,
-                  padding: "10px 12px",
-                  fontSize: 13,
-                }}
               >
                 {s}
-              </Button>
+              </Chip>
             );
           })}
         </div>
@@ -278,17 +273,14 @@ export default function HomePage() {
       >
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
           {[1, 2, 3, 4, 5, 6].map((n) => (
-            <Button
+            <Chip
               key={n}
-              variant={servings === n ? "primary" : "secondary"}
+              active={servings === n}
               onClick={() => setServings(n)}
-              style={{
-                flex: "1 0 28%",
-                padding: "10px 12px",
-              }}
+              style={{ flex: "1 0 28%", textAlign: "center" }}
             >
               {n}
-            </Button>
+            </Chip>
           ))}
         </div>
 
