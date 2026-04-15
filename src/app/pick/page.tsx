@@ -116,8 +116,9 @@ function guessFamilies(recipe: { title?: string; ingredients?: { item: string }[
     ing.includes("salmón") ||
     ing.includes("salmon") ||
     ing.includes("pescado")
-  )
+  ) {
     fam.push("pescado en lata / pescado");
+  }
   if (ing.includes("huevo") || t.includes("tortilla")) fam.push("huevo/tortilla");
 
   if (ing.includes("pasta") || t.includes("pasta") || t.includes("espagueti") || t.includes("penne")) fam.push("pasta");
@@ -132,8 +133,9 @@ function guessFamilies(recipe: { title?: string; ingredients?: { item: string }[
     ing.includes("miel") ||
     ing.includes("azúcar") ||
     ing.includes("harina")
-  )
+  ) {
     fam.push("postre");
+  }
 
   if (t.includes("airfryer")) fam.push("airfryer");
   if (
@@ -143,8 +145,9 @@ function guessFamilies(recipe: { title?: string; ingredients?: { item: string }[
     t.includes("fingers") ||
     ing.includes("pan rallado") ||
     ing.includes("panko")
-  )
+  ) {
     fam.push("crujiente/empanado");
+  }
 
   return fam;
 }
@@ -190,18 +193,18 @@ export default function PickPage() {
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(RECIPE_KEY);
-      if (raw) {
-        const r = JSON.parse(raw);
-        setRecipe(r);
+      if (!raw) return;
 
-        addToDiversity(r);
+      const r = JSON.parse(raw) as Recipe;
+      setRecipe(r);
 
-        sessionStorage.setItem("lucca_last_title_v1", String(r.title || ""));
-        sessionStorage.setItem(
-          "lucca_last_recipe_min_v1",
-          JSON.stringify({ title: r.title || "", ingredients: r.ingredients || [] })
-        );
-      }
+      addToDiversity(r);
+
+      sessionStorage.setItem("lucca_last_title_v1", String(r.title || ""));
+      sessionStorage.setItem(
+        "lucca_last_recipe_min_v1",
+        JSON.stringify({ title: r.title || "", ingredients: r.ingredients || [] })
+      );
     } catch (e) {
       debugError("pick_recipe_load", e);
     }
@@ -221,17 +224,21 @@ export default function PickPage() {
   async function dislikeAndGetAnother() {
     setErr(null);
 
-    const prompt = sessionStorage.getItem(PROMPT_KEY);
+    let prompt = "";
+    try {
+      prompt = sessionStorage.getItem(PROMPT_KEY) || "";
+    } catch (e) {
+      debugError("pick_prompt_load", e);
+      prompt = "";
+    }
+
     if (!prompt) {
       setErr("No encuentro el prompt. Vuelve a Home y prueba otra vez.");
       return;
     }
 
     const elapsedMs = pickOpenTsRef.current ? Date.now() - pickOpenTsRef.current : null;
-    t("pick_dislike", {
-      elapsedMs,
-      fromTitle: recipe?.title || "",
-    });
+    t("pick_dislike", { elapsedMs, fromTitle: recipe?.title || "" });
 
     setLoading(true);
     try {
@@ -264,7 +271,6 @@ export default function PickPage() {
         `- Prioriza alternar BASES: (huevo/tortilla, legumbre, pasta, arroz, ensalada, pescado en lata) y alternar método.\n` +
         `Devuelve SOLO el JSON del esquema.\n`;
 
-      // ✅ NUEVO: apiJson (maneja no-JSON + requestId + errorMsg consistente)
       const r = await apiJson<{ recipe?: Recipe; error?: string; requestId?: string }>("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -275,7 +281,6 @@ export default function PickPage() {
         const errMsg = r.errorMsg || "No se pudo generar otra opción.";
         setErr(errMsg);
         debugError("pick_dislike_api", errMsg);
-
         t("pick_dislike_error", { error: errMsg });
         return;
       }
@@ -285,7 +290,6 @@ export default function PickPage() {
         const errMsg = "La API respondió sin receta.";
         setErr(errMsg);
         debugError("pick_dislike_no_recipe", r.data);
-
         t("pick_dislike_error", { error: "no_recipe" });
         return;
       }
@@ -299,12 +303,14 @@ export default function PickPage() {
       setRecipe(nextRecipe);
       addToDiversity(nextRecipe);
 
+      // (opcional) reiniciar el “cronómetro” para el nuevo plato
+      pickOpenTsRef.current = Date.now();
+
       t("pick_dislike_success", { title: nextRecipe.title });
     } catch (e: any) {
       const msg = e?.message || String(e);
       setErr(msg);
       debugError("pick_dislike_fetch", e);
-
       t("pick_dislike_error", { error: msg });
     } finally {
       setLoading(false);
@@ -332,7 +338,6 @@ export default function PickPage() {
           <div style={{ fontSize: 14, fontWeight: 950, margin: "6px 0 2px" }}>Elige tu plato</div>
         </div>
 
-        {/* ✅ NO CAMBIAR: Volver a Home */}
         <a
           href="/"
           style={{
@@ -390,12 +395,7 @@ export default function PickPage() {
       </Card>
 
       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-        <Button
-          variant="secondary"
-          onClick={dislikeAndGetAnother}
-          loading={loading}
-          style={{ flex: 1, padding: "14px 12px" }}
-        >
+        <Button variant="secondary" onClick={dislikeAndGetAnother} loading={loading} style={{ flex: 1, padding: "14px 12px" }}>
           No me gusta
         </Button>
 
@@ -404,12 +404,13 @@ export default function PickPage() {
           onClick={() => {
             const elapsedMs = pickOpenTsRef.current ? Date.now() - pickOpenTsRef.current : null;
 
-            t("pick_like", {
-              elapsedMs,
-              title: recipe.title,
-            });
+            t("pick_like", { elapsedMs, title: recipe.title });
 
-            window.location.href = "/prep";
+            try {
+              window.location.href = "/prep";
+            } catch (e) {
+              debugError("pick_nav_prep", e);
+            }
           }}
           style={{ flex: 1, padding: "14px 12px" }}
         >

@@ -8,6 +8,7 @@ import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 import { track } from "@/src/lib/track";
 import { debugError } from "@/src/lib/debug";
 import { apiJson } from "@/src/lib/api";
+import Modal from "@/src/components/ui/Modal";
 
 type Prefs = {
   cuisine?: string;
@@ -292,75 +293,52 @@ export default function PrepPage() {
       </Card>
 
       {missingOpen && (
-        <div
-          onClick={() => setMissingOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 90,
-          }}
+        <Modal
+          open={missingOpen}
+          onClose={() => setMissingOpen(false)}
+          title="Marca lo que te falta"
+          maxWidth={520}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 520,
-              background: "var(--card)",
-              color: "var(--fg)",
-              borderRadius: "var(--r-xl)",
-              border: "var(--border)",
-              padding: 16,
-              boxShadow: "var(--shadow)",
-            }}
-          >
-            <div style={{ fontWeight: 950, marginBottom: 10 }}>Marca lo que te falta</div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflow: "auto" }}>
-              {(recipe.ingredients || []).map((ing, idx) => (
-                <label key={idx} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={!!missingMap[ing.item]}
-                    onChange={() => setMissingMap((prev) => ({ ...prev, [ing.item]: !prev[ing.item] }))}
-                  />
-                  <span style={{ fontWeight: 800 }}>
-                    {ing.item}{" "}
-                    <span style={{ fontWeight: 400, color: "var(--muted)" }}>
-                      {ing.amount ? `— ${ing.amount}` : ""}
-                    </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflow: "auto" }}>
+            {(recipe.ingredients || []).map((ing, idx) => (
+              <label key={idx} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={!!missingMap[ing.item]}
+                  onChange={() => setMissingMap((prev) => ({ ...prev, [ing.item]: !prev[ing.item] }))}
+                />
+                <span style={{ fontWeight: 800 }}>
+                  {ing.item}{" "}
+                  <span style={{ fontWeight: 400, color: "var(--muted)" }}>
+                    {ing.amount ? `— ${ing.amount}` : ""}
                   </span>
-                </label>
-              ))}
-            </div>
-
-            {regenErr && (
-              <div style={{ marginTop: 10, border: "1px solid #c00", padding: 10, borderRadius: "var(--r-lg)" }}>
-                ⚠️ {regenErr}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <Button variant="secondary" onClick={() => setMissingOpen(false)} style={{ flex: 1 }}>
-                Cancelar
-              </Button>
-
-              <Button
-                variant="primary"
-                onClick={regenerateWithoutMissing}
-                disabled={regenLoading}
-                loading={regenLoading}
-                style={{ flex: 1 }}
-              >
-                Adaptar receta
-              </Button>
-            </div>
+                </span>
+              </label>
+            ))}
           </div>
-        </div>
+
+          {regenErr && (
+            <div style={{ marginTop: 10, border: "1px solid #c00", padding: 10, borderRadius: "var(--r-lg)" }}>
+              ⚠️ {regenErr}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <Button variant="secondary" onClick={() => setMissingOpen(false)} style={{ flex: 1 }}>
+              Cancelar
+            </Button>
+
+            <Button
+              variant="primary"
+              onClick={regenerateWithoutMissing}
+              disabled={regenLoading}
+              loading={regenLoading}
+              style={{ flex: 1 }}
+            >
+              Adaptar receta
+            </Button>
+          </div>
+        </Modal>
       )}
     </main>
   );
