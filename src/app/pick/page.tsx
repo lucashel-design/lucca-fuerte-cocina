@@ -5,6 +5,7 @@ import Button from "@/src/components/ui/Button";
 import Card from "@/src/components/ui/Card";
 import State from "@/src/components/ui/State";
 import { track } from "@/src/lib/track";
+import { debugError } from "@/src/lib/debug";
 
 type Recipe = {
   title: string;
@@ -152,7 +153,10 @@ function addToDiversity(recipe: { title?: string; ingredients?: { item: string }
     const prev = JSON.parse(sessionStorage.getItem(DIVERSITY_KEY) || "[]") as string[];
     const next = Array.from(new Set([...prev, ...guessFamilies(recipe)])).slice(-14);
     sessionStorage.setItem(DIVERSITY_KEY, JSON.stringify(next));
-  } catch {}
+  } catch (e) {
+    // Esto es opcional. Lo dejamos en debug para no romper el flujo.
+    debugError("pick_diversity_store", e);
+  }
 }
 
 export default function PickPage() {
@@ -177,7 +181,9 @@ export default function PickPage() {
     try {
       const raw = localStorage.getItem(PREFS_KEY);
       if (raw) setPrefs(JSON.parse(raw));
-    } catch {}
+    } catch (e) {
+      debugError("pick_prefs_load", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -186,6 +192,7 @@ export default function PickPage() {
       if (raw) {
         const r = JSON.parse(raw);
         setRecipe(r);
+
         addToDiversity(r);
 
         sessionStorage.setItem("lucca_last_title_v1", String(r.title || ""));
@@ -194,7 +201,9 @@ export default function PickPage() {
           JSON.stringify({ title: r.title || "", ingredients: r.ingredients || [] })
         );
       }
-    } catch {}
+    } catch (e) {
+      debugError("pick_recipe_load", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -231,7 +240,11 @@ export default function PickPage() {
       let bannedList: string[] = [];
       try {
         bannedList = JSON.parse(sessionStorage.getItem(DIVERSITY_KEY) || "[]") as string[];
-      } catch {}
+      } catch (e) {
+        // Esto también es opcional, pero ayuda debuggear “por qué repite familias”
+        debugError("pick_diversity_load", e);
+        bannedList = [];
+      }
 
       const originalPrompt = prompt || "";
       const filteredBanned = bannedList.filter((fam) => !promptRequiresFamily(originalPrompt, fam));
@@ -269,6 +282,7 @@ export default function PickPage() {
       addToDiversity(data.recipe);
     } catch (e: any) {
       setErr(e?.message || String(e));
+      debugError("pick_dislike_fetch", e);
     } finally {
       setLoading(false);
     }
@@ -353,7 +367,12 @@ export default function PickPage() {
       </Card>
 
       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-        <Button variant="secondary" onClick={dislikeAndGetAnother} loading={loading} style={{ flex: 1, padding: "14px 12px" }}>
+        <Button
+          variant="secondary"
+          onClick={dislikeAndGetAnother}
+          loading={loading}
+          style={{ flex: 1, padding: "14px 12px" }}
+        >
           No me gusta
         </Button>
 

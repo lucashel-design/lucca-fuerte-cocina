@@ -7,6 +7,7 @@ import Card from "@/src/components/ui/Card";
 import Button from "@/src/components/ui/Button";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 import { track } from "@/src/lib/track";
+import { debugError } from "@/src/lib/debug";
 
 const KEY = "lucca_current_recipe_v1";
 
@@ -162,7 +163,9 @@ export default function CookPage() {
 
       if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
       if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
-    } catch {}
+    } catch (e) {
+      debugError("cook_audio_unlock", e);
+    }
   }
 
   function beep() {
@@ -184,7 +187,9 @@ export default function CookPage() {
 
       o.start();
       setTimeout(() => o.stop(), 250);
-    } catch {}
+    } catch (e) {
+      debugError("cook_audio_beep", e);
+    }
   }
 
   const currentStep = useMemo(() => {
@@ -203,14 +208,27 @@ export default function CookPage() {
 
       if (!parsed.success) {
         console.warn("Receta inválida en sessionStorage (Cook)", parsed.error.flatten());
-        sessionStorage.removeItem(KEY);
+
+        try {
+          sessionStorage.removeItem(KEY);
+        } catch (e) {
+          debugError("cook_recipe_remove", e);
+        }
+
         setRecipe(null);
         return;
       }
 
       setRecipe(parsed.data);
-    } catch {
-      sessionStorage.removeItem(KEY);
+    } catch (e) {
+      debugError("cook_recipe_load", e);
+
+      try {
+        sessionStorage.removeItem(KEY);
+      } catch (e2) {
+        debugError("cook_recipe_remove", e2);
+      }
+
       setRecipe(null);
     }
   }, []);
@@ -273,7 +291,9 @@ export default function CookPage() {
 
           try {
             if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
-          } catch {}
+          } catch (e) {
+            debugError("cook_vibrate", e);
+          }
 
           beep();
           setJustFinished(true);
@@ -341,7 +361,6 @@ export default function CookPage() {
         </a>
       </div>
 
-      {/* ✅ Card principal del paso */}
       <Card style={{ marginTop: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontWeight: 900 }}>
@@ -400,7 +419,6 @@ export default function CookPage() {
         )}
       </Card>
 
-      {/* ✅ Navegación (sin botones extra) */}
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <Button
           variant="secondary"
@@ -437,7 +455,6 @@ export default function CookPage() {
         </Button>
       </div>
 
-      {/* ✅ Cierre final */}
       {stepIdx === total - 1 && (
         <Card style={{ marginTop: 14 }}>
           <div style={{ fontWeight: 950, marginBottom: 6 }}>Cierre rápido</div>
@@ -466,6 +483,7 @@ export default function CookPage() {
                 downloadStoryCard(recipe);
                 t("story_download", { where: "cook_final", stepIdx, total });
               } catch (e: any) {
+                debugError("cook_story_download", e);
                 console.warn("No se pudo generar la story", e);
                 t("story_download_error", { msg: e?.message || String(e) });
               }

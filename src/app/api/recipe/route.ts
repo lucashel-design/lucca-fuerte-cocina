@@ -1,9 +1,12 @@
 import OpenAI from "openai";
 import { RecipeV1Schema } from "@/src/lib/recipe/schema";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
+import { debugError } from "@/src/lib/debug";
+
 export const runtime = "nodejs";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 // --- Cache + Rate limit (MVP, memoria) ---
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 min
 const recipeCache = new Map<string, { ts: number; value: any }>();
@@ -110,7 +113,6 @@ REGLAS OBLIGATORIAS:
 function normalizeWow(recipe: any) {
   if (!recipe || typeof recipe !== "object") return recipe;
 
-  // 1) Limpia wow y lo deja siempre como "Opcional: ..."
   const rawWow = String(recipe.wow ?? "").trim();
 
   const wowCore = rawWow
@@ -121,7 +123,6 @@ function normalizeWow(recipe: any) {
   const normalizedWow = wowCore ? `Opcional: ${wowCore}` : "";
   recipe.wow = normalizedWow;
 
-  // 2) Fuerza que el step opcional WOW sea exactamente el mismo contenido (wowCore)
   if (Array.isArray(recipe.steps)) {
     recipe.steps = recipe.steps.filter((s: any) => {
       const t = String(s?.text ?? "");
@@ -140,15 +141,23 @@ function normalizeWow(recipe: any) {
 }
 
 export async function POST(req: Request) {
+  const requestId = randomUUID();
+
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch (e) {
+      debugError("api_recipe_body_parse", { requestId, error: e });
+      return Response.json({ error: "Body inválido (no es JSON)", requestId }, { status: 400 });
+    }
 
     // Rate limit por IP
     const ip = getClientIp(req);
     const rl = checkRateLimit(ip);
     if (!rl.ok) {
       return Response.json(
-        { error: `Demasiadas peticiones. Prueba en ${rl.retryAfterSec}s.` },
+        { error: `Demasiadas peticiones. Prueba en ${rl.retryAfterSec}s.`, requestId },
         { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } }
       );
     }
@@ -169,20 +178,21 @@ export async function POST(req: Request) {
       const missing = toStringArray(body?.missing);
 
       if (!baseRecipe || typeof baseRecipe !== "object") {
-        return Response.json({ error: "Falta baseRecipe para adaptar" }, { status: 400 });
+        return Response.json({ error: "Falta baseRecipe para adaptar", requestId }, { status: 400 });
       }
       if (missing.length === 0) {
-        return Response.json({ error: "missing vacío (debe ser array de strings)" }, { status: 400 });
+        return Response.json({ error: "missing vacío (debe ser array de strings)", requestId }, { status: 400 });
       }
 
       userMessage = buildAdaptMissingUserMessage({ basePrompt, baseRecipe, missing, userNote });
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      return Response.json({ error: "Falta OPENAI_API_KEY en .env.local" }, { status: 500 });
+      debugError("api_recipe_missing_key", { requestId });
+      return Response.json({ error: "Falta OPENAI_API_KEY en .env.local", requestId }, { status: 500 });
     }
     if (!userMessage) {
-      return Response.json({ error: "userMessage vacío" }, { status: 400 });
+      return Response.json({ error: "userMessage vacío", requestId }, { status: 400 });
     }
 
     // Cache: mismas entradas => misma salida (reduce coste)
@@ -190,7 +200,6 @@ export async function POST(req: Request) {
       mode,
       userMessage,
       prefs,
-      // incluimos estos campos porque afectan a la generación/adaptación
       basePrompt: String(body?.basePrompt ?? "").trim(),
       userNote: String(body?.userNote ?? "").trim(),
       baseRecipe: body?.baseRecipe ?? null,
@@ -199,9 +208,8 @@ export async function POST(req: Request) {
 
     const cached = cacheGet(cacheKey);
     if (cached) {
-      return Response.json({ recipe: cached, cached: true });
+      return Response.json({ recipe: cached, cached: true, requestId });
     }
-
 
     const cuisine = String(prefs?.cuisine || "Española");
     const eq = prefs?.equipment || {};
@@ -244,10 +252,6 @@ Incluye SIEMPRE:
 WOW (campo "wow"):
 - Debe ser una IDEA OPCIONAL para impresionar, NO una opinión sobre el plato.
 - Formato: 1–2 líneas, accionable (qué hacer y cuándo), y empieza por "Opcional:".
-- Ejemplos válidos:
-- "Opcional: al final añade queso rallado 2 min para un 'cheese pull'."
-- "Opcional: termina con crujiente (pan rallado tostado) por encima justo al servir."
-- "Opcional: marca el pollo 1 min extra al final para bordes más dorados."
 - PROHIBIDO: frases tipo “queda espectacular”, “muy rico”, “se ve increíble” sin acción concreta.
 Integración WOW en pasos:
 - Añade SIEMPRE 1 paso opcional al final (antes de servir) que empiece por "Opcional (WOW):"
@@ -281,89 +285,136 @@ ESQUEMA JSON (respétalo):
       ? `${system}\n\nREGLA EXTRA (ADAPTACIÓN): NO cambies el plato por otro. Mantén la identidad y solo ajusta ingredientes/pasos.`
       : system;
 
-    const resp = await client.responses.create({
-      model: "gpt-4o-mini",
-      input: [
-        { role: "system", content: systemFinal },
-        { role: "user", content: userMessage },
-      ],
-      max_output_tokens: 700,
-    });
-
-    let text = (resp.output_text || "").trim();
-
-    // Intento 1: parsear
-    let recipe: any;
-
-    // 1) Parse JSON (o intenta arreglar si no parsea)
+    let resp: any;
     try {
-      recipe = JSON.parse(text);
-    } catch {
-      const fix = await client.responses.create({
+      resp = await client.responses.create({
         model: "gpt-4o-mini",
         input: [
-          {
-            role: "system",
-            content:
-              "Convierte lo siguiente en JSON válido siguiendo EXACTAMENTE el esquema. Devuelve SOLO JSON. Sin Markdown.",
-          },
-          { role: "user", content: text },
+          { role: "system", content: systemFinal },
+          { role: "user", content: userMessage },
         ],
-        max_output_tokens: 500,
+        max_output_tokens: 700,
       });
-
-      text = (fix.output_text || "").trim();
-      recipe = JSON.parse(text);
+    } catch (e) {
+      debugError("api_recipe_openai_call", { requestId, error: e, mode });
+      return Response.json({ error: "Error llamando a OpenAI", requestId }, { status: 502 });
     }
 
-    // 2) Normaliza WOW (tu lógica actual)
-    recipe = normalizeWow(recipe);
+    let text = String(resp?.output_text || "").trim();
+    if (!text) {
+      debugError("api_recipe_empty_output", { requestId, mode });
+      return Response.json({ error: "OpenAI devolvió una respuesta vacía", requestId }, { status: 502 });
+    }
+
+    // 1) Parse JSON (o intenta arreglar si no parsea)
+    let recipe: any;
+
+    try {
+      recipe = JSON.parse(text);
+    } catch (e) {
+      debugError("api_recipe_json_parse", { requestId, error: e, snippet: text.slice(0, 200) });
+
+      let fixResp: any;
+      try {
+        fixResp = await client.responses.create({
+          model: "gpt-4o-mini",
+          input: [
+            {
+              role: "system",
+              content:
+                "Convierte lo siguiente en JSON válido siguiendo EXACTAMENTE el esquema. Devuelve SOLO JSON. Sin Markdown.",
+            },
+            { role: "user", content: text },
+          ],
+          max_output_tokens: 500,
+        });
+      } catch (e2) {
+        debugError("api_recipe_json_fix_call", { requestId, error: e2 });
+        return Response.json({ error: "Error intentando reparar el JSON", requestId }, { status: 502 });
+      }
+
+      text = String(fixResp?.output_text || "").trim();
+
+      try {
+        recipe = JSON.parse(text);
+      } catch (e3) {
+        debugError("api_recipe_json_fix_parse", { requestId, error: e3, snippet: text.slice(0, 200) });
+        return Response.json({ error: "JSON inválido tras reparación", requestId }, { status: 502 });
+      }
+    }
+
+    // 2) Normaliza WOW
+    try {
+      recipe = normalizeWow(recipe);
+    } catch (e) {
+      debugError("api_recipe_normalize_wow", { requestId, error: e });
+    }
 
     // 3) Valida contra el schema (contrato real)
     let parsed = RecipeV1Schema.safeParse(recipe);
 
     if (!parsed.success) {
-      // 1 intento de “repair” para encajar el schema (no solo JSON válido)
-      const repair = await client.responses.create({
-        model: "gpt-4o-mini",
-        input: [
-          {
-            role: "system",
-            content:
-              "Ajusta el JSON para que cumpla EXACTAMENTE el schema indicado. Devuelve SOLO JSON válido, sin texto extra.",
-          },
-          {
-            role: "user",
-            content:
-              `SCHEMA (descripción): RecipeV1.\n` +
-              `JSON ACTUAL:\n${JSON.stringify(recipe)}\n\n` +
-              `ERRORES:\n${JSON.stringify(parsed.error.flatten())}`,
-          },
-        ],
-        max_output_tokens: 600,
+      debugError("api_recipe_schema_invalid", {
+        requestId,
+        errors: parsed.error.flatten(),
+        mode,
       });
 
-      const repairedText = (repair.output_text || "").trim();
-      const repairedJson = JSON.parse(repairedText);
-      const normalized = normalizeWow(repairedJson);
+      // 1 intento de “repair” para encajar el schema (no solo JSON válido)
+      let repairResp: any;
+      try {
+        repairResp = await client.responses.create({
+          model: "gpt-4o-mini",
+          input: [
+            {
+              role: "system",
+              content:
+                "Ajusta el JSON para que cumpla EXACTAMENTE el schema indicado. Devuelve SOLO JSON válido, sin texto extra.",
+            },
+            {
+              role: "user",
+              content:
+                `SCHEMA (descripción): RecipeV1.\n` +
+                `JSON ACTUAL:\n${JSON.stringify(recipe)}\n\n` +
+                `ERRORES:\n${JSON.stringify(parsed.error.flatten())}`,
+            },
+          ],
+          max_output_tokens: 600,
+        });
+      } catch (e) {
+        debugError("api_recipe_schema_repair_call", { requestId, error: e });
+        return Response.json({ error: "Error intentando reparar el schema", requestId }, { status: 502 });
+      }
 
+      const repairedText = String(repairResp?.output_text || "").trim();
+      let repairedJson: any;
+      try {
+        repairedJson = JSON.parse(repairedText);
+      } catch (e) {
+        debugError("api_recipe_schema_repair_parse", { requestId, error: e, snippet: repairedText.slice(0, 200) });
+        return Response.json({ error: "JSON inválido tras reparación de schema", requestId }, { status: 502 });
+      }
+
+      const normalized = normalizeWow(repairedJson);
       parsed = RecipeV1Schema.safeParse(normalized);
 
       if (!parsed.success) {
+        debugError("api_recipe_schema_still_invalid", { requestId, errors: parsed.error.flatten() });
         console.warn("La receta no cumple RecipeV1Schema", parsed.error.flatten());
         return Response.json(
-          { error: "La receta generada no cumple el formato esperado. Prueba otra vez." },
+          { error: "La receta generada no cumple el formato esperado. Prueba otra vez.", requestId },
           { status: 500 }
         );
       }
     }
+
     cacheSet(cacheKey, parsed.data);
 
-    return Response.json({ recipe: parsed.data });
-
+    return Response.json({ recipe: parsed.data, requestId });
   } catch (err: any) {
+    debugError("api_recipe_unhandled", { requestId, error: err });
     return Response.json(
-      { error: "Error en /api/recipe", details: err?.message ?? String(err) },
+      { error: "Error en /api/recipe", details: err?.message ?? String(err), requestId },
       { status: 500 }
     );
   }

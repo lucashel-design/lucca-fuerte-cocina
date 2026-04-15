@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Button from "@/src/components/ui/Button";
 import Modal from "@/src/components/ui/Modal";
 import Chip from "@/src/components/ui/Chip";
+import { debugError } from "@/src/lib/debug";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -84,54 +85,30 @@ export default function HomePage() {
     try {
       const raw = localStorage.getItem(PREFS_KEY);
       if (raw) setPrefs(JSON.parse(raw));
-    } catch {}
+    } catch (e) {
+      debugError("prefs_load", e);
+    }
   }, []);
 
   // Guardar prefs cuando cambien
   useEffect(() => {
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
-    } catch {}
+    } catch (e) {
+      debugError("prefs_save", e);
+    }
   }, [prefs]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    try {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    } catch (e) {
+      debugError("home_scroll", e);
+    }
   }, [messages, loading]);
 
   /* async function sendWithText(text: string) {
-    if (!text || loading) return;
-
-    const nextMessages: Msg[] = [...messages, { role: "user", content: text }];
-    setMessages(nextMessages);
-    setLoading(true);
-
-    try {
-      const shortHistory = nextMessages.slice(-6).map((m) => ({ role: m.role, content: m.content }));
-
-      const res = await fetch("/api/recipe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage: text, shortHistory, prefs }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: `⚠️ Error: ${data?.error || "Algo falló"}` },
-        ]);
-      } else {
-        setMessages((prev) => [...prev, { role: "assistant", content: String(data?.text || "") }]);
-      }
-    } catch (e: any) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `⚠️ Error de red: ${e?.message || e}` },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+    // (comentada a propósito)
   } */
 
   async function cookWithPrompt(prompt: string) {
@@ -149,7 +126,12 @@ export default function HomePage() {
     const styleLine = selectedStyles.length ? `ESTILO: ${selectedStyles.join(", ")}` : "";
     const finalPrompt = [prompt, styleLine, `RACIONES: ${servings}`].filter(Boolean).join("\n");
 
-    sessionStorage.setItem("lucca_last_prompt_v1", finalPrompt);
+    // ✅ Guardar prompt (debuggable)
+    try {
+      sessionStorage.setItem("lucca_last_prompt_v1", finalPrompt);
+    } catch (e) {
+      debugError("home_prompt_save", e);
+    }
 
     try {
       const res = await fetch("/api/recipe", {
@@ -168,9 +150,21 @@ export default function HomePage() {
         return;
       }
 
-      sessionStorage.setItem("lucca_current_recipe_v1", JSON.stringify(data.recipe));
-      window.location.href = "/pick";
+      // ✅ Guardar receta (debuggable)
+      try {
+        sessionStorage.setItem("lucca_current_recipe_v1", JSON.stringify(data.recipe));
+      } catch (e) {
+        debugError("home_recipe_save", e);
+      }
+
+      // ✅ Navegación (debuggable)
+      try {
+        window.location.href = "/pick";
+      } catch (e) {
+        debugError("home_nav_pick", e);
+      }
     } catch (e: any) {
+      debugError("home_recipe_fetch", e);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: `⚠️ Error de red: ${e?.message || e}` },
@@ -219,7 +213,7 @@ export default function HomePage() {
               setServings(2);
               setStylesOpen(true);
             }}
-            style={{ padding: "8px 10px" }} // un pelín más compacto que el chip normal
+            style={{ padding: "8px 10px" }}
           >
             {q.label}
           </Chip>
@@ -232,11 +226,7 @@ export default function HomePage() {
           {STYLE_OPTIONS.map((s) => {
             const active = selectedStyles.includes(s);
             return (
-              <Chip
-                key={s}
-                active={active}
-                onClick={() => toggleStyle(s)}
-              >
+              <Chip key={s} active={active} onClick={() => toggleStyle(s)}>
                 {s}
               </Chip>
             );
@@ -356,7 +346,7 @@ export default function HomePage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* ✅ Modal ajustes (migrado a Modal) */}
+      {/* Modal ajustes */}
       <Modal open={showSettings} onClose={() => setShowSettings(false)} title="Ajustes" maxWidth={520}>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 900, marginBottom: 6 }}>Tipo de cocina</div>
@@ -407,7 +397,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Extra UX móvil: botón grande para cerrar abajo */}
         <div style={{ marginTop: 12 }}>
           <Button variant="primary" onClick={() => setShowSettings(false)} style={{ width: "100%" }}>
             Listo

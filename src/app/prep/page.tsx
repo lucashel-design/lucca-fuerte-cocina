@@ -6,6 +6,7 @@ import Card from "@/src/components/ui/Card";
 import Button from "@/src/components/ui/Button";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 import { track } from "@/src/lib/track";
+import { debugError } from "@/src/lib/debug";
 
 type Prefs = {
   cuisine?: string;
@@ -32,13 +33,13 @@ export default function PrepPage() {
   const openTrackedRef = useRef(false);
 
   function t(name: string, meta?: Record<string, any>) {
-  track({
-    name,
-    screen: "prep",
-    recipeTitle: String(recipe?.title ?? ""),
-    meta: meta || undefined,
-  });
-}
+    track({
+      name,
+      screen: "prep",
+      recipeTitle: String(recipe?.title ?? ""),
+      meta: meta || undefined,
+    });
+  }
 
   useEffect(() => {
     try {
@@ -50,14 +51,27 @@ export default function PrepPage() {
 
       if (!parsed.success) {
         console.warn("Receta inválida en sessionStorage", parsed.error.flatten());
-        sessionStorage.removeItem(RECIPE_KEY);
+
+        try {
+          sessionStorage.removeItem(RECIPE_KEY);
+        } catch (e) {
+          debugError("prep_recipe_remove", e);
+        }
+
         setRecipe(null);
         return;
       }
 
       setRecipe(parsed.data);
-    } catch {
-      sessionStorage.removeItem(RECIPE_KEY);
+    } catch (e) {
+      debugError("prep_recipe_load", e);
+
+      try {
+        sessionStorage.removeItem(RECIPE_KEY);
+      } catch (e2) {
+        debugError("prep_recipe_remove", e2);
+      }
+
       setRecipe(null);
     }
   }, []);
@@ -122,13 +136,22 @@ export default function PrepPage() {
 
     try {
       const baseRecipe = compactRecipeForAdaptation(recipe);
-      const basePrompt = sessionStorage.getItem(PROMPT_KEY) || "";
+
+      let basePrompt = "";
+      try {
+        basePrompt = sessionStorage.getItem(PROMPT_KEY) || "";
+      } catch (e) {
+        debugError("prep_prompt_load", e);
+        basePrompt = "";
+      }
 
       let prefs: Prefs | undefined = undefined;
       try {
         const rawPrefs = localStorage.getItem(PREFS_KEY);
         if (rawPrefs) prefs = JSON.parse(rawPrefs);
-      } catch {}
+      } catch (e) {
+        debugError("prep_prefs_load", e);
+      }
 
       const response = await fetch("/api/recipe", {
         method: "POST",
@@ -162,7 +185,12 @@ export default function PrepPage() {
         return;
       }
 
-      sessionStorage.setItem(RECIPE_KEY, JSON.stringify(parsed.data));
+      try {
+        sessionStorage.setItem(RECIPE_KEY, JSON.stringify(parsed.data));
+      } catch (e) {
+        debugError("prep_recipe_save", e);
+      }
+
       setRecipe(parsed.data);
       setMissingOpen(false);
 
@@ -171,6 +199,7 @@ export default function PrepPage() {
       const msg = e?.message || String(e);
       setRegenErr(msg);
 
+      debugError("prep_adapt_missing_fetch", e);
       t("prep_adapt_missing_error", { missingCount: missingList.length, error: msg });
     } finally {
       setRegenLoading(false);
@@ -217,7 +246,6 @@ export default function PrepPage() {
         </a>
       </div>
 
-      {/* ✅ Card consistente */}
       <Card style={{ marginTop: 14 }}>
         <div style={{ fontWeight: 950, marginBottom: 8 }}>Ingredientes</div>
 
