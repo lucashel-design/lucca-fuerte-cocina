@@ -98,7 +98,7 @@ export default function HomePage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  async function sendWithText(text: string) {
+  /* async function sendWithText(text: string) {
     if (!text || loading) return;
 
     const nextMessages: Msg[] = [...messages, { role: "user", content: text }];
@@ -132,7 +132,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }
+  } */
 
   async function cookWithPrompt(prompt: string) {
     const text = prompt.trim();

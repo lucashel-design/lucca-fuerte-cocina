@@ -5,6 +5,7 @@ import State from "@/src/components/ui/State";
 import Card from "@/src/components/ui/Card";
 import Button from "@/src/components/ui/Button";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
+import { track } from "@/src/lib/track";
 
 type Prefs = {
   cuisine?: string;
@@ -30,32 +31,14 @@ export default function PrepPage() {
   const [regenErr, setRegenErr] = useState<string | null>(null);
   const openTrackedRef = useRef(false);
 
-  function track(name: string, meta?: Record<string, any>) {
-    const payload = {
-      name,
-      screen: "prep",
-      recipeTitle: String(recipe?.title ?? ""),
-      meta: meta || undefined,
-    };
-
-    try {
-      if (typeof navigator !== "undefined" && "sendBeacon" in navigator) {
-        const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-        (navigator as any).sendBeacon("/api/track", blob);
-        return;
-      }
-    } catch {}
-
-    try {
-      fetch("/api/track", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        // @ts-ignore
-        keepalive: true,
-      }).catch(() => {});
-    } catch {}
-  }
+  function t(name: string, meta?: Record<string, any>) {
+  track({
+    name,
+    screen: "prep",
+    recipeTitle: String(recipe?.title ?? ""),
+    meta: meta || undefined,
+  });
+}
 
   useEffect(() => {
     try {
@@ -84,7 +67,7 @@ export default function PrepPage() {
     if (openTrackedRef.current) return;
 
     openTrackedRef.current = true;
-    track("prep_open", {
+    t("prep_open", {
       ingredientCount: (recipe.ingredients || []).length,
       servings: recipe.servings,
       timeMinutes: recipe.timeMinutes,
@@ -101,7 +84,7 @@ export default function PrepPage() {
     setMissingMap(initial);
     setRegenErr(null);
 
-    track("prep_missing_open", { ingredientCount: (recipe.ingredients || []).length });
+    t("prep_missing_open", { ingredientCount: (recipe.ingredients || []).length });
 
     setMissingOpen(true);
   }
@@ -132,7 +115,7 @@ export default function PrepPage() {
       return;
     }
 
-    track("prep_adapt_missing_submit", { missingCount: missingList.length });
+    t("prep_adapt_missing_submit", { missingCount: missingList.length });
 
     setRegenLoading(true);
     setRegenErr(null);
@@ -165,7 +148,7 @@ export default function PrepPage() {
         const errMsg = data?.error || "No se pudo adaptar la receta.";
         setRegenErr(errMsg);
 
-        track("prep_adapt_missing_error", { missingCount: missingList.length, error: errMsg });
+        t("prep_adapt_missing_error", { missingCount: missingList.length, error: errMsg });
         return;
       }
 
@@ -175,7 +158,7 @@ export default function PrepPage() {
         console.warn("La API devolvió una receta inválida", parsed.error.flatten(), data);
         setRegenErr("La receta volvió con un formato raro. Dale otra vez o vuelve a Pick.");
 
-        track("prep_adapt_missing_error", { missingCount: missingList.length, error: "schema_invalid" });
+        t("prep_adapt_missing_error", { missingCount: missingList.length, error: "schema_invalid" });
         return;
       }
 
@@ -183,12 +166,12 @@ export default function PrepPage() {
       setRecipe(parsed.data);
       setMissingOpen(false);
 
-      track("prep_adapt_missing_success", { missingCount: missingList.length });
+      t("prep_adapt_missing_success", { missingCount: missingList.length });
     } catch (e: any) {
       const msg = e?.message || String(e);
       setRegenErr(msg);
 
-      track("prep_adapt_missing_error", { missingCount: missingList.length, error: msg });
+      t("prep_adapt_missing_error", { missingCount: missingList.length, error: msg });
     } finally {
       setRegenLoading(false);
     }
@@ -255,7 +238,7 @@ export default function PrepPage() {
           <Button
             variant="primary"
             onClick={() => {
-              track("prep_start_cook", { stepIdx: 0 });
+              t("prep_start_cook", { stepIdx: 0 });
               window.location.href = "/cook";
             }}
             style={{ flex: 1 }}
