@@ -5,6 +5,7 @@ import Button from "@/src/components/ui/Button";
 import Modal from "@/src/components/ui/Modal";
 import Chip from "@/src/components/ui/Chip";
 import { debugError } from "@/src/lib/debug";
+import { apiJson } from "@/src/lib/api";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -107,10 +108,6 @@ export default function HomePage() {
     }
   }, [messages, loading]);
 
-  /* async function sendWithText(text: string) {
-    // (comentada a propósito)
-  } */
-
   async function cookWithPrompt(prompt: string) {
     const text = prompt.trim();
     if (!text || loading) return;
@@ -134,25 +131,24 @@ export default function HomePage() {
     }
 
     try {
-      const res = await fetch("/api/recipe", {
+      // ✅ NUEVO: apiJson (maneja no-JSON + requestId)
+      const r = await apiJson<{ recipe?: any; error?: string; requestId?: string }>("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userMessage: finalPrompt, prefs }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!r.ok) {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: `⚠️ Error: ${data?.error || "No se pudo generar la receta"}` },
+          { role: "assistant", content: `⚠️ Error: ${r.errorMsg || "No se pudo generar la receta"}` },
         ]);
         return;
       }
 
       // ✅ Guardar receta (debuggable)
       try {
-        sessionStorage.setItem("lucca_current_recipe_v1", JSON.stringify(data.recipe));
+        sessionStorage.setItem("lucca_current_recipe_v1", JSON.stringify(r.data?.recipe));
       } catch (e) {
         debugError("home_recipe_save", e);
       }

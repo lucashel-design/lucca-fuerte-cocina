@@ -6,6 +6,7 @@ import Card from "@/src/components/ui/Card";
 import State from "@/src/components/ui/State";
 import { track } from "@/src/lib/track";
 import { debugError } from "@/src/lib/debug";
+import { apiJson } from "@/src/lib/api";
 
 type Recipe = {
   title: string;
@@ -154,7 +155,7 @@ function addToDiversity(recipe: { title?: string; ingredients?: { item: string }
     const next = Array.from(new Set([...prev, ...guessFamilies(recipe)])).slice(-14);
     sessionStorage.setItem(DIVERSITY_KEY, JSON.stringify(next));
   } catch (e) {
-    // Esto es opcional. Lo dejamos en debug para no romper el flujo.
+    // opcional: no rompe flujo
     debugError("pick_diversity_store", e);
   }
 }
@@ -241,7 +242,6 @@ export default function PickPage() {
       try {
         bannedList = JSON.parse(sessionStorage.getItem(DIVERSITY_KEY) || "[]") as string[];
       } catch (e) {
-        // Esto también es opcional, pero ayuda debuggear “por qué repite familias”
         debugError("pick_diversity_load", e);
         bannedList = [];
       }
@@ -264,25 +264,48 @@ export default function PickPage() {
         `- Prioriza alternar BASES: (huevo/tortilla, legumbre, pasta, arroz, ensalada, pescado en lata) y alternar método.\n` +
         `Devuelve SOLO el JSON del esquema.\n`;
 
-      const res = await fetch("/api/recipe", {
+      // ✅ NUEVO: apiJson (maneja no-JSON + requestId + errorMsg consistente)
+      const r = await apiJson<{ recipe?: Recipe; error?: string; requestId?: string }>("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userMessage: retryPrompt, prefs: prefs ?? undefined }),
       });
 
-      const data = await res.json();
+      if (!r.ok) {
+        const errMsg = r.errorMsg || "No se pudo generar otra opción.";
+        setErr(errMsg);
+        debugError("pick_dislike_api", errMsg);
 
-      if (!res.ok) {
-        setErr(data?.error || "No se pudo generar otra opción.");
+        t("pick_dislike_error", { error: errMsg });
         return;
       }
 
-      sessionStorage.setItem(RECIPE_KEY, JSON.stringify(data.recipe));
-      setRecipe(data.recipe);
-      addToDiversity(data.recipe);
+      const nextRecipe = r.data?.recipe;
+      if (!nextRecipe) {
+        const errMsg = "La API respondió sin receta.";
+        setErr(errMsg);
+        debugError("pick_dislike_no_recipe", r.data);
+
+        t("pick_dislike_error", { error: "no_recipe" });
+        return;
+      }
+
+      try {
+        sessionStorage.setItem(RECIPE_KEY, JSON.stringify(nextRecipe));
+      } catch (e) {
+        debugError("pick_recipe_save", e);
+      }
+
+      setRecipe(nextRecipe);
+      addToDiversity(nextRecipe);
+
+      t("pick_dislike_success", { title: nextRecipe.title });
     } catch (e: any) {
-      setErr(e?.message || String(e));
+      const msg = e?.message || String(e);
+      setErr(msg);
       debugError("pick_dislike_fetch", e);
+
+      t("pick_dislike_error", { error: msg });
     } finally {
       setLoading(false);
     }

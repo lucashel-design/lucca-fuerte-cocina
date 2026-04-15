@@ -7,6 +7,7 @@ import Button from "@/src/components/ui/Button";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
 import { track } from "@/src/lib/track";
 import { debugError } from "@/src/lib/debug";
+import { apiJson } from "@/src/lib/api";
 
 type Prefs = {
   cuisine?: string;
@@ -153,7 +154,8 @@ export default function PrepPage() {
         debugError("prep_prefs_load", e);
       }
 
-      const response = await fetch("/api/recipe", {
+      // ✅ NUEVO: apiJson (maneja no-JSON + requestId)
+      const r = await apiJson<{ recipe?: unknown; error?: string; requestId?: string }>("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -165,20 +167,18 @@ export default function PrepPage() {
         }),
       });
 
-      const data = (await response.json()) as { recipe?: unknown; error?: string };
-
-      if (!response.ok) {
-        const errMsg = data?.error || "No se pudo adaptar la receta.";
+      if (!r.ok) {
+        const errMsg = r.errorMsg || "No se pudo adaptar la receta.";
         setRegenErr(errMsg);
 
         t("prep_adapt_missing_error", { missingCount: missingList.length, error: errMsg });
         return;
       }
 
-      const parsed = RecipeV1Schema.safeParse(data?.recipe);
+      const parsed = RecipeV1Schema.safeParse(r.data?.recipe);
 
       if (!parsed.success) {
-        console.warn("La API devolvió una receta inválida", parsed.error.flatten(), data);
+        console.warn("La API devolvió una receta inválida", parsed.error.flatten(), r.data);
         setRegenErr("La receta volvió con un formato raro. Dale otra vez o vuelve a Pick.");
 
         t("prep_adapt_missing_error", { missingCount: missingList.length, error: "schema_invalid" });
