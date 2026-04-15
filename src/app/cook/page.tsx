@@ -6,6 +6,7 @@ import State from "@/src/components/ui/State";
 import Card from "@/src/components/ui/Card";
 import Button from "@/src/components/ui/Button";
 import { RecipeV1Schema, type RecipeV1 } from "@/src/lib/recipe/schema";
+import { track } from "@/src/lib/track";
 
 const KEY = "lucca_current_recipe_v1";
 
@@ -145,19 +146,13 @@ export default function CookPage() {
   // Audio
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  function track(name: string, meta?: Record<string, any>) {
-    try {
-      fetch("/api/track", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          screen: "cook",
-          recipeTitle: recipe?.title || "",
-          meta: meta || undefined,
-        }),
-      }).catch(() => {});
-    } catch {}
+  function t(name: string, meta?: Record<string, any>) {
+    track({
+      name,
+      screen: "cook",
+      recipeTitle: String(recipe?.title ?? ""),
+      meta: meta || undefined,
+    });
   }
 
   function unlockAudio() {
@@ -232,7 +227,7 @@ export default function CookPage() {
 
     const isLast = stepIdx === totalSteps - 1;
     if (isLast && !finishTracked) {
-      track("cook_finish", { total: totalSteps });
+      t("cook_finish", { total: totalSteps });
       setFinishTracked(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -240,14 +235,14 @@ export default function CookPage() {
 
   useEffect(() => {
     if (!recipe) return;
-    track("cook_open", { stepIdx: 0 });
+    t("cook_open", { stepIdx: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!recipe]);
 
   useEffect(() => {
     if (!recipe || !currentStep) return;
 
-    track("cook_step_view", {
+    t("cook_step_view", {
       stepIdx,
       total: recipe.steps.length,
       timerSec: currentStep.timerSec || 0,
@@ -283,7 +278,7 @@ export default function CookPage() {
           beep();
           setJustFinished(true);
 
-          track("timer_finish", {
+          t("timer_finish", {
             stepIdx,
             total: recipe?.steps?.length || 0,
             timerSec: currentStep?.timerSec || 0,
@@ -372,7 +367,7 @@ export default function CookPage() {
                 if (!running) unlockAudio();
                 setJustFinished(false);
 
-                track(running ? "timer_pause" : "timer_start", {
+                t(running ? "timer_pause" : "timer_start", {
                   stepIdx,
                   total: recipe.steps.length,
                   remaining,
@@ -388,7 +383,7 @@ export default function CookPage() {
             <Button
               variant="secondary"
               onClick={() => {
-                track("timer_reset", {
+                t("timer_reset", {
                   stepIdx,
                   total: recipe.steps.length,
                   timerSec: currentStep?.timerSec || 0,
@@ -469,10 +464,10 @@ export default function CookPage() {
             onClick={() => {
               try {
                 downloadStoryCard(recipe);
-                track("story_download", { where: "cook_final", stepIdx, total });
+                t("story_download", { where: "cook_final", stepIdx, total });
               } catch (e: any) {
                 console.warn("No se pudo generar la story", e);
-                track("story_download_error", { msg: e?.message || String(e) });
+                t("story_download_error", { msg: e?.message || String(e) });
               }
             }}
             style={{ marginTop: 12, width: "100%" }}

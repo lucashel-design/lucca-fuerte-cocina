@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { track } from "@/src/lib/track";
 
 type CoachDockProps = {
   recipe?: any; // receta actual (la compactamos para ahorrar tokens)
@@ -52,19 +53,13 @@ export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
     };
   }, [recipe, stepIndex]);
 
-  function track(name: string, meta?: Record<string, any>) {
-    try {
-      fetch("/api/track", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          screen: "cook",
-          recipeTitle: String(recipe?.title ?? ""),
-          meta: meta || undefined,
-        }),
-      }).catch(() => {});
-    } catch {}
+  function t(name: string, meta?: Record<string, any>) {
+    track({
+      name,
+      screen: "cook",
+      recipeTitle: String(recipe?.title ?? ""),
+      meta: meta || undefined,
+    });
   }
 
   async function send() {
@@ -76,7 +71,7 @@ export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
     setLoading(true);
 
     // ✅ Evento: usuario envía mensaje al coach
-    track("coach_send", {
+    t("coach_send", {
       stepIdx: typeof stepIndex === "number" ? stepIndex : null,
       textLen: text.length,
     });
@@ -100,7 +95,7 @@ export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
         setMsgs((prev) => [...prev, { role: "assistant", text: `⚠️ ${errMsg}` }]);
 
         // ✅ Evento: respuesta error
-        track("coach_response", {
+        t("coach_response", {
           ok: false,
           stepIdx: typeof stepIndex === "number" ? stepIndex : null,
           error: errMsg,
@@ -110,7 +105,7 @@ export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
         setMsgs((prev) => [...prev, { role: "assistant", text: answer || "Vale." }]);
 
         // ✅ Evento: respuesta ok
-        track("coach_response", {
+        t("coach_response", {
           ok: true,
           stepIdx: typeof stepIndex === "number" ? stepIndex : null,
           answerLen: answer.length,
@@ -121,7 +116,7 @@ export default function CoachDock({ recipe, stepIndex }: CoachDockProps) {
       setMsgs((prev) => [...prev, { role: "assistant", text: `⚠️ ${err}` }]);
 
       // ✅ Evento: excepción/red
-      track("coach_response", {
+      t("coach_response", {
         ok: false,
         stepIdx: typeof stepIndex === "number" ? stepIndex : null,
         error: err,

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Button from "@/src/components/ui/Button";
 import Card from "@/src/components/ui/Card";
 import State from "@/src/components/ui/State";
+import { track } from "@/src/lib/track";
 
 type Recipe = {
   title: string;
@@ -163,31 +164,13 @@ export default function PickPage() {
   const pickOpenTsRef = useRef<number | null>(null);
   const openTrackedRef = useRef(false);
 
-  function track(name: string, meta?: Record<string, any>) {
-    const payload = {
+  function t(name: string, meta?: Record<string, any>) {
+    track({
       name,
       screen: "pick",
       recipeTitle: String(recipe?.title ?? ""),
       meta: meta || undefined,
-    };
-
-    try {
-      if (typeof navigator !== "undefined" && "sendBeacon" in navigator) {
-        const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-        (navigator as any).sendBeacon("/api/track", blob);
-        return;
-      }
-    } catch {}
-
-    try {
-      fetch("/api/track", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        // @ts-ignore
-        keepalive: true,
-      }).catch(() => {});
-    } catch {}
+    });
   }
 
   useEffect(() => {
@@ -221,7 +204,7 @@ export default function PickPage() {
     openTrackedRef.current = true;
     pickOpenTsRef.current = Date.now();
 
-    track("pick_open", { title: recipe.title });
+    t("pick_open", { title: recipe.title });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!recipe]);
 
@@ -235,7 +218,7 @@ export default function PickPage() {
     }
 
     const elapsedMs = pickOpenTsRef.current ? Date.now() - pickOpenTsRef.current : null;
-    track("pick_dislike", {
+    t("pick_dislike", {
       elapsedMs,
       fromTitle: recipe?.title || "",
     });
@@ -379,7 +362,7 @@ export default function PickPage() {
           onClick={() => {
             const elapsedMs = pickOpenTsRef.current ? Date.now() - pickOpenTsRef.current : null;
 
-            track("pick_like", {
+            t("pick_like", {
               elapsedMs,
               title: recipe.title,
             });
