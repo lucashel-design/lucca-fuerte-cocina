@@ -36,12 +36,12 @@ export default function HomePage() {
     {
       role: "assistant",
       content:
-        "Ey 👨‍🍳 Soy Lucca.Fuerte. Dime qué te apetece hoy (o qué tienes en la nevera) y te lo resuelvo en 20 min.",
+        "Ey 👨‍🍳 Soy Lucca, tu asistente en la cocina. Dime qué te apetece hoy (o qué tienes en la nevera) y te lo resuelvo en 20 min.",
     },
   ]);
 
   const quick = [
-    { label: "Tengo esto…", text: "Tengo: ___. Quiero cena en 20 min. Dame 2 opciones y elige 1." },
+    { label: "Tengo esto…", text: "" }, // 👈 caso especial (no usamos plantilla con ___)
     { label: "Pasta", text: "Quiero una receta de pasta viral en 20 min (4-6 ingredientes) con wow." },
     { label: "Pollo", text: "Quiero una cena rápida con pollo en 20 min (sin complicarme) con wow." },
     { label: "Ensalada", text: "Quiero una ensalada que llene (20 min) con proteína y wow." },
@@ -55,6 +55,7 @@ export default function HomePage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
 
   const [showSettings, setShowSettings] = useState(false);
@@ -77,11 +78,15 @@ export default function HomePage() {
   const [stylesOpen, setStylesOpen] = useState(false);
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
 
+  // ✅ NUEVO: modal para “Tengo esto…”
+  const [haveOpen, setHaveOpen] = useState(false);
+  const [haveText, setHaveText] = useState("");
+
   function toggleStyle(s: string) {
     setSelectedStyles((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
   }
 
-  // Cargar prefs al iniciar (solo en cliente)
+  // Cargar prefs
   useEffect(() => {
     try {
       const raw = localStorage.getItem(PREFS_KEY);
@@ -91,7 +96,7 @@ export default function HomePage() {
     }
   }, []);
 
-  // Guardar prefs cuando cambien
+  // Guardar prefs
   useEffect(() => {
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
@@ -123,7 +128,6 @@ export default function HomePage() {
     const styleLine = selectedStyles.length ? `ESTILO: ${selectedStyles.join(", ")}` : "";
     const finalPrompt = [prompt, styleLine, `RACIONES: ${servings}`].filter(Boolean).join("\n");
 
-    // ✅ Guardar prompt (debuggable)
     try {
       sessionStorage.setItem("lucca_last_prompt_v1", finalPrompt);
     } catch (e) {
@@ -131,7 +135,6 @@ export default function HomePage() {
     }
 
     try {
-      // ✅ NUEVO: apiJson (maneja no-JSON + requestId)
       const r = await apiJson<{ recipe?: any; error?: string; requestId?: string }>("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -146,14 +149,12 @@ export default function HomePage() {
         return;
       }
 
-      // ✅ Guardar receta (debuggable)
       try {
         sessionStorage.setItem("lucca_current_recipe_v1", JSON.stringify(r.data?.recipe));
       } catch (e) {
         debugError("home_recipe_save", e);
       }
 
-      // ✅ Navegación (debuggable)
       try {
         window.location.href = "/pick";
       } catch (e) {
@@ -170,16 +171,22 @@ export default function HomePage() {
     }
   }
 
-  async function send() {
-    const text = input.trim();
+  function openStyleFlowWithPrompt(p: string) {
+    const text = p.trim();
     if (!text || loading) return;
-
-    setInput("");
 
     setPendingPrompt(text);
     setSelectedStyles([]);
     setServings(2);
     setStylesOpen(true);
+  }
+
+  async function send() {
+    const text = input.trim();
+    if (!text || loading) return;
+
+    setInput("");
+    openStyleFlowWithPrompt(text);
   }
 
   return (
@@ -194,7 +201,7 @@ export default function HomePage() {
       </div>
 
       <p style={{ color: "var(--muted)", marginBottom: 16 }}>
-        “Hoy cocino X”. Dime lo que tienes y te lo dejo fácil.
+        Dime qué te apetece hoy, o qué tienes en la nevera. Puedes elegir una opción, o escribir abajo.
       </p>
 
       {/* Quick */}
@@ -204,10 +211,14 @@ export default function HomePage() {
             key={q.label}
             disabled={loading}
             onClick={() => {
-              setPendingPrompt(q.text);
-              setSelectedStyles([]);
-              setServings(2);
-              setStylesOpen(true);
+              // ✅ Caso especial: “Tengo esto…”
+              if (q.label === "Tengo esto…") {
+                setHaveText("");
+                setHaveOpen(true);
+                return;
+              }
+
+              openStyleFlowWithPrompt(q.text);
             }}
             style={{ padding: "8px 10px" }}
           >
@@ -215,6 +226,60 @@ export default function HomePage() {
           </Chip>
         ))}
       </div>
+
+      {/* ✅ Modal “Tengo esto…” */}
+      <Modal open={haveOpen} onClose={() => setHaveOpen(false)} title="¿Qué tienes en la nevera?" maxWidth={520}>
+        <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 10 }}>
+          Escribe ingredientes separados por comas. Ej: <b>huevos, pan, atún, tomate</b>
+        </div>
+
+        <textarea
+          value={haveText}
+          onChange={(e) => setHaveText(e.target.value)}
+          placeholder="Ej: huevos, pan, atún, tomate..."
+          style={{
+            width: "100%",
+            minHeight: 110,
+            padding: 12,
+            borderRadius: 12,
+            border: "var(--border)",
+            background: "var(--card)",
+            color: "var(--fg)",
+            outline: "none",
+            resize: "none",
+          }}
+        />
+
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <Button variant="secondary" onClick={() => setHaveOpen(false)} style={{ flex: 1 }}>
+            Cancelar
+          </Button>
+
+          <Button
+            variant="primary"
+            onClick={() => {
+              const items = haveText
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+
+              if (items.length === 0) return;
+
+              setHaveOpen(false);
+
+              const prompt =
+                `Tengo: ${items.join(", ")}.\n` +
+                `Quiero cena en 20 min. Dame 2 opciones y elige 1.\n` +
+                `Ingredientes de súper en España.`;
+
+              openStyleFlowWithPrompt(prompt);
+            }}
+            style={{ flex: 1 }}
+          >
+            Seguir
+          </Button>
+        </div>
+      </Modal>
 
       {/* Modal estilos */}
       <Modal open={stylesOpen} onClose={() => setStylesOpen(false)} title="¿Qué estilo te apetece?" maxWidth={520}>
@@ -414,6 +479,7 @@ export default function HomePage() {
       >
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: 8 }}>
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {

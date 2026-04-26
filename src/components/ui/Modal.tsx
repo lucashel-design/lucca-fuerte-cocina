@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useId } from "react";
 import Card from "@/src/components/ui/Card";
 import Button from "@/src/components/ui/Button";
 
@@ -10,8 +10,9 @@ type ModalProps = {
   title?: string;
   children: React.ReactNode;
   maxWidth?: number; // px
-  closeOnBackdrop?: boolean; // por defecto false (mobile-first)
-  closeOnEscape?: boolean; // por defecto false (mobile-first)
+  closeOnBackdrop?: boolean; // default false (mobile-first)
+  closeOnEscape?: boolean; // default false (mobile-first)
+  showCloseButton?: boolean; // default true
 };
 
 export default function Modal({
@@ -22,22 +23,43 @@ export default function Modal({
   maxWidth = 520,
   closeOnBackdrop = false,
   closeOnEscape = false,
+  showCloseButton = true,
 }: ModalProps) {
+  const titleId = useId();
+
+  // 1) Escape (opcional)
   useEffect(() => {
     if (!open || !closeOnEscape) return;
 
-    function onKeyDown(e: KeyboardEvent) {
+    const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-    }
+    };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, closeOnEscape, onClose]);
 
+  // 2) Bloquear scroll del body mientras está abierto (muy importante en móvil)
+  useEffect(() => {
+    if (!open) return;
+
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   if (!open) return null;
+
+  const hasHeader = !!title || showCloseButton;
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={title ? titleId : undefined}
       onClick={closeOnBackdrop ? onClose : undefined}
       style={{
         position: "fixed",
@@ -48,6 +70,8 @@ export default function Modal({
         justifyContent: "center",
         padding: 16,
         zIndex: 60,
+        // toque mobile-friendly
+        WebkitTapHighlightColor: "transparent",
       }}
     >
       <div
@@ -55,7 +79,7 @@ export default function Modal({
         style={{ width: "100%", maxWidth }}
       >
         <Card>
-          {
+          {hasHeader && (
             <div
               style={{
                 display: "flex",
@@ -65,15 +89,25 @@ export default function Modal({
                 marginBottom: 12,
               }}
             >
-              <div style={{ fontWeight: 950, fontSize: 14 }}>
-                {title || ""}
-              </div>
+              {title ? (
+                <div id={titleId} style={{ fontWeight: 950, fontSize: 14 }}>
+                  {title}
+                </div>
+              ) : (
+                <div />
+              )}
 
-              <Button variant="secondary" onClick={onClose} style={{ padding: "6px 10px" }}>
-                Cerrar
-              </Button>
+              {showCloseButton && (
+                <Button
+                  variant="secondary"
+                  onClick={onClose}
+                  style={{ padding: "6px 10px" }}
+                >
+                  Cerrar
+                </Button>
+              )}
             </div>
-          }
+          )}
 
           {children}
         </Card>
